@@ -356,6 +356,7 @@ export function reconcileDay(office, crew, isoHint = null) {
   }
 
   result.freeMinutes = freeMinutesForDay(result);
+  result.diffMinutes = (result.reconciledIstMinutes || 0) - (result.officeSollMinutes || 0);
   result.note = generateNote(result);
   return result;
 }
@@ -376,10 +377,11 @@ export function reconcile(officeDoc, crewDoc) {
       acc.crewIst += day.crew?.istMinutes || 0;
       acc.reconciledIst += day.reconciledIstMinutes || 0;
       acc.officeSoll += day.officeSollMinutes || 0;
+      acc.diff += day.diffMinutes || 0;
       acc.free += day.freeMinutes || 0;
       return acc;
     },
-    { officeIst: 0, crewIst: 0, reconciledIst: 0, officeSoll: 0, free: 0 },
+    { officeIst: 0, crewIst: 0, reconciledIst: 0, officeSoll: 0, diff: 0, free: 0 },
   );
 
   return {

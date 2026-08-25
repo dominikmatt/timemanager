@@ -289,14 +289,28 @@ td.note {
   color: var(--office);
 }
 
-.hr-table tr.needs td:nth-child(8),
 .hr-table tr.needs td:nth-child(9),
-.hr-table tr.needs td:nth-child(10) {
+.hr-table tr.needs td:nth-child(10),
+.hr-table tr.needs td:nth-child(11) {
   background: var(--way-bg);
 }
 
 .hr-table .extra-time {
   color: var(--way);
+}
+
+td.diff,
+.diff {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.diff.plus {
+  color: var(--way);
+}
+
+.diff.minus {
+  color: var(--warn);
 }
 
 @media print {

@@ -38,6 +38,9 @@ describe("hr export", () => {
     assert.equal(row.k2, "12:15");
     assert.equal(row.g2, "16:01");
     assert.equal(row.ist, "9:00");
+    assert.equal(row.soll, "8:17");
+    assert.equal(row.diff, "+0:43");
+    assert.equal(row.diffMinutes, 43);
     assert.match(row.extraText, /06:45–07:29 Auswärts\n16:33–17:00/);
     assert.doesNotMatch(row.extraText, /07:44/);
     assert.equal(row.extraKind, "Auswärts, Auswärts nach Büro");
@@ -50,7 +53,7 @@ describe("hr export", () => {
 
     const csv = hrToCsv({ legend: "Legende", rows: [row] });
     assert.match(csv, /07:44;11:47;12:15;16:01/);
-    assert.match(csv, /Art;Zusatzzeit;Pausezeit;Zusätzlich buchen/);
+    assert.match(csv, /Istzeit;Sollzeit;Differenz;Art;Zusatzzeit;Pausezeit;Zusätzlich buchen/);
     assert.match(csv, /1:11/);
     assert.match(csv, /1:15/);
   });
@@ -109,6 +112,7 @@ describe("hr export", () => {
     );
     assert.equal(holiday.ist, "5:22");
     assert.equal(holiday.soll, "5:22");
+    assert.equal(holiday.diff, "0:00");
     assert.equal(holiday.extraKind, "Urlaub");
     assert.equal(holiday.extraDuration, "5:22");
     assert.match(holiday.extraText, /Urlaub 1 Tag/);
@@ -167,6 +171,7 @@ describe("hr export", () => {
     );
     assert.equal(row.k1, "");
     assert.equal(row.ist, "9:00");
+    assert.equal(row.diff, "+0:43");
     assert.equal(row.extraKind, "Homeoffice");
     assert.equal(row.extraDuration, "9:00");
     assert.equal(row.pauseDuration, "1:15");

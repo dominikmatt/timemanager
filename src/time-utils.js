@@ -33,6 +33,15 @@ export function minutesToDuration(minutes) {
   return `${sign}${h}:${String(m).padStart(2, "0")}`;
 }
 
+export function minutesToSignedDuration(minutes) {
+  if (minutes == null || Number.isNaN(minutes)) return "";
+  const rounded = Math.round(minutes);
+  if (rounded === 0) return "0:00";
+  const sign = rounded > 0 ? "+" : "-";
+  const abs = Math.abs(rounded);
+  return `${sign}${Math.floor(abs / 60)}:${String(abs % 60).padStart(2, "0")}`;
+}
+
 export function hoursToMinutes(hours) {
   if (hours == null || hours === "") return 0;
   return Math.round(Number(hours) * 60);

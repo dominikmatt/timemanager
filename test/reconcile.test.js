@@ -55,6 +55,7 @@ describe("reconcileDay", () => {
     assert.equal(byType["after_office:"].end, t("17:00"));
     assert.equal(day.reconciledIstMinutes, 9 * 60);
     assert.equal(Math.abs(day.reconciledIstMinutes - crew.istMinutes) <= 5, true);
+    assert.equal(day.diffMinutes, t("0:43"));
     assert.equal(day.freeMinutes, 28 + 15 + 32);
     assert.match(day.note, /unverändert/);
     assert.match(day.note, /11:47–12:15 \(28 Min\)/);
@@ -150,6 +151,7 @@ describe("reconcileDay", () => {
     assert.equal(day.kind, "vacation");
     assert.equal(day.reconciledIstMinutes, t("5:22"));
     assert.equal(day.reconciledIstMinutes, day.officeSollMinutes);
+    assert.equal(day.diffMinutes, 0);
     assert.equal(day.freeMinutes, 0);
     assert.match(day.note, /Urlaub/);
     assert.match(day.note, /Ist auf Soll/);

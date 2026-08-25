@@ -64,7 +64,9 @@ describe("sample files", () => {
     );
     assert.ok(Math.abs(officeDay.reconciledIstMinutes - officeDay.crew.istMinutes) <= 5);
     assert.equal(officeDay.reconciledIstMinutes, parseTimeToMinutes("9:00"));
+    assert.equal(officeDay.diffMinutes, parseTimeToMinutes("0:43"));
     assert.equal(hrRow.ist, "9:00");
+    assert.equal(hrRow.diff, "+0:43");
 
     const sick = byIso["2026-08-03"];
     assert.match(sick.crew.absence, /Krankheit/);

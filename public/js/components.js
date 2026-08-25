@@ -80,6 +80,27 @@ function duration(minutes) {
   return `${sign}${Math.floor(abs / 60)}:${String(abs % 60).padStart(2, "0")}`;
 }
 
+function signedDuration(minutes) {
+  if (minutes == null || Number.isNaN(minutes)) return "—";
+  const rounded = Math.round(minutes);
+  if (rounded === 0) return "0:00";
+  const sign = rounded > 0 ? "+" : "-";
+  const abs = Math.abs(rounded);
+  return `${sign}${Math.floor(abs / 60)}:${String(abs % 60).padStart(2, "0")}`;
+}
+
+function dayDiff(day) {
+  if (day.diffMinutes != null) return day.diffMinutes;
+  return (day.reconciledIstMinutes || 0) - (day.officeSollMinutes || 0);
+}
+
+function diffClass(minutes) {
+  const rounded = Math.round(minutes || 0);
+  if (rounded > 0) return "diff plus";
+  if (rounded < 0) return "diff minus";
+  return "diff";
+}
+
 function germanRange(range) {
   if (!range?.from) return "—";
   const fmt = (iso) => {
@@ -154,6 +175,7 @@ function toCsv(result) {
     "Abgleich",
     "Abgleich Ist",
     "Büro Soll",
+    "Differenz",
     "Pause",
     "Freizeit",
     "Hinweis",
@@ -176,6 +198,7 @@ function toCsv(result) {
       reconciled,
       duration(day.reconciledIstMinutes),
       duration(day.officeSollMinutes),
+      signedDuration(dayDiff(day)),
       pause,
       duration(day.freeMinutes),
       day.note,
@@ -199,10 +222,11 @@ function sumTotals(days) {
       acc.crewIst += day.crew?.istMinutes || 0;
       acc.reconciledIst += day.reconciledIstMinutes || 0;
       acc.officeSoll += day.officeSollMinutes || 0;
+      acc.diff += dayDiff(day);
       acc.free += day.freeMinutes || 0;
       return acc;
     },
-    { officeIst: 0, crewIst: 0, reconciledIst: 0, officeSoll: 0, free: 0 },
+    { officeIst: 0, crewIst: 0, reconciledIst: 0, officeSoll: 0, diff: 0, free: 0 },
   );
 }
 
@@ -246,6 +270,7 @@ function hrPanel(hr) {
         <td class="kg">${row.g2 || "—"}</td>
         <td>${row.ist || "—"}</td>
         <td>${row.soll || "—"}</td>
+        <td class="${diffClass(row.diffMinutes)}">${row.diff || "—"}</td>
         <td>${row.extraKind || "—"}</td>
         <td class="kg extra-time">${row.extraDuration || "—"}</td>
         <td class="kg">${row.pauseDuration || "—"}</td>
@@ -277,6 +302,7 @@ function hrPanel(hr) {
               <th>G</th>
               <th>Istzeit</th>
               <th>Sollzeit</th>
+              <th>Differenz</th>
               <th>Art</th>
               <th>Zusatzzeit</th>
               <th>Pausezeit</th>
@@ -346,6 +372,7 @@ export class TimeResultTable extends HTMLElement {
 
     const view = visibleResult(this.#result, this.#ignoreEmpty);
     const totals = view.totals;
+    const diffTotal = totals.diff ?? (totals.reconciledIst || 0) - (totals.officeSoll || 0);
     const allDays = this.#result.days.length;
     const rows = view.days
       .map((day) => {
@@ -358,6 +385,7 @@ export class TimeResultTable extends HTMLElement {
           }<div>Ist ${duration(day.office?.istMinutes)}</div></td>
           <td>${crewLabel(day)}<div>Ist ${duration(day.crew?.istMinutes)}</div></td>
           <td>${absenceChip(day) || chips(day.reconciledIntervals)}<div><strong>${duration(day.reconciledIstMinutes)}</strong> / Soll ${duration(day.officeSollMinutes)}</div></td>
+          <td class="${diffClass(dayDiff(day))}"><strong>${signedDuration(dayDiff(day))}</strong></td>
           <td>${pause}</td>
           <td><strong>${duration(day.freeMinutes)}</strong></td>
           <td class="note${warnClass}">${day.note}</td>
@@ -372,6 +400,7 @@ export class TimeResultTable extends HTMLElement {
           <div><span>Crewmeister Ist</span><strong>${duration(totals.crewIst)}</strong></div>
           <div><span>Abgleich Ist</span><strong>${duration(totals.reconciledIst)}</strong></div>
           <div><span>Büro Soll</span><strong>${duration(totals.officeSoll)}</strong></div>
+          <div><span>Differenz</span><strong class="${diffClass(diffTotal)}">${signedDuration(diffTotal)}</strong></div>
           <div><span>Freizeit</span><strong>${duration(totals.free)}</strong></div>
           <div><span>Crewmeister-Dateien</span><strong>${this.#result.crewFiles || 0}</strong></div>
           <div><span>Zeitraum</span><strong>${germanRange(this.#result.crewRange)} · ${view.days.length}${
@@ -393,6 +422,7 @@ export class TimeResultTable extends HTMLElement {
                 <th>Büro</th>
                 <th>Crewmeister</th>
                 <th>Abgleich</th>
+                <th>Differenz</th>
                 <th>Pause</th>
                 <th>Freizeit</th>
                 <th>Hinweis</th>

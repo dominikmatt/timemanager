@@ -3,6 +3,7 @@ import { describe, it } from "node:test";
 import {
   excelSerialToIso,
   minutesToDuration,
+  minutesToSignedDuration,
   parseTimeToMinutes,
   punchesToIntervals,
   splitPause,
@@ -18,6 +19,9 @@ describe("time-utils", () => {
     assert.equal(parseTimeToMinutes("-8:17"), -(8 * 60 + 17));
     assert.equal(parseTimeToMinutes("-0:43"), -43);
     assert.equal(minutesToDuration(454), "7:34");
+    assert.equal(minutesToSignedDuration(43), "+0:43");
+    assert.equal(minutesToSignedDuration(-43), "-0:43");
+    assert.equal(minutesToSignedDuration(0), "0:00");
   });
 
   it("converts Excel serial 46237 to 2026-08-03", () => {

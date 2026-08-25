@@ -1,4 +1,10 @@
-import { formatInterval, intervalDuration, minutesToClock, minutesToDuration } from "./time-utils.js";
+import {
+  formatInterval,
+  intervalDuration,
+  minutesToClock,
+  minutesToDuration,
+  minutesToSignedDuration,
+} from "./time-utils.js";
 import { detectAbsence } from "./absence.js";
 
 const EXTRA_LABEL = {
@@ -78,6 +84,7 @@ export function buildHrRow(day) {
   const needsBooking = extras.length > 0;
   const extraMinutes = extras.reduce((sum, extra) => sum + (extra.minutes || 0), 0);
   const extraKind = [...new Set(extras.map((extra) => extra.label))].join(", ");
+  const diffMinutes = (day.reconciledIstMinutes || 0) - (day.officeSollMinutes || 0);
   return {
     iso: day.iso,
     date: day.date,
@@ -89,6 +96,8 @@ export function buildHrRow(day) {
     extraKind,
     extraMinutes: needsBooking ? extraMinutes : null,
     extraDuration: needsBooking ? minutesToDuration(extraMinutes) : "",
+    diffMinutes,
+    diff: minutesToSignedDuration(diffMinutes),
     pauseMinutes: day.freeMinutes || 0,
     pauseDuration: minutesToDuration(day.freeMinutes || 0) || "0:00",
     extraText: extras.map((item) => item.text).join("\n"),
@@ -109,7 +118,7 @@ export function buildHrExport(result) {
   return {
     title: result.officeTitle || "Arbeitszeiten",
     legend:
-      "Spalten K und G sind die Stempel aus der Büro-Auswertung (PDF). Diese Zeiten nicht ändern. Art, Zusatzzeit und Pausezeit sind die Nachbuchungsdaten.",
+      "Spalten K und G sind die Stempel aus der Büro-Auswertung (PDF). Diese Zeiten nicht ändern. Differenz ist Istzeit minus Sollzeit. Art, Zusatzzeit und Pausezeit sind die Nachbuchungsdaten.",
     rows,
     toBook: rows.filter((row) => row.needsBooking).length,
     unchanged: rows.filter((row) => row.hasOfficePunches).length,
@@ -126,6 +135,7 @@ export function hrToCsv(hr) {
     "G",
     "Istzeit",
     "Sollzeit",
+    "Differenz",
     "Art",
     "Zusatzzeit",
     "Pausezeit",
@@ -145,6 +155,7 @@ export function hrToCsv(hr) {
         row.g2,
         row.ist,
         row.soll,
+        row.diff,
         row.extraKind,
         row.extraDuration,
         row.pauseDuration,

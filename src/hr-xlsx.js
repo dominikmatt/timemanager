@@ -8,11 +8,11 @@ export async function hrToXlsxBuffer(hr) {
     pageSetup: { orientation: "landscape", fitToPage: true, fitToWidth: 1, paperSize: 9 },
   });
 
-  sheet.mergeCells("A1:M1");
+  sheet.mergeCells("A1:N1");
   sheet.getCell("A1").value = hr.title;
   sheet.getCell("A1").font = { bold: true, size: 14, name: "Calibri" };
 
-  sheet.mergeCells("A2:M2");
+  sheet.mergeCells("A2:N2");
   sheet.getCell("A2").value = hr.legend;
   sheet.getCell("A2").font = { italic: true, size: 11, name: "Calibri", color: { argb: "FF5C564C" } };
   sheet.getCell("A2").alignment = { wrapText: true, vertical: "middle" };
@@ -27,6 +27,7 @@ export async function hrToXlsxBuffer(hr) {
     "G",
     "Istzeit",
     "Sollzeit",
+    "Differenz",
     "Art",
     "Zusatzzeit",
     "Pausezeit",
@@ -53,6 +54,7 @@ export async function hrToXlsxBuffer(hr) {
       row.g2,
       row.ist,
       row.soll,
+      row.diff,
       row.extraKind,
       row.extraDuration,
       row.pauseDuration,
@@ -65,11 +67,17 @@ export async function hrToXlsxBuffer(hr) {
     for (const col of [3, 4, 5, 6]) {
       added.getCell(col).font = { name: "Calibri", size: 11, bold: true };
     }
+    added.getCell(9).font = { name: "Calibri", size: 11, bold: true };
+    if (row.diffMinutes > 0) {
+      added.getCell(9).font = { name: "Calibri", size: 11, bold: true, color: { argb: "FF1F5A4E" } };
+    } else if (row.diffMinutes < 0) {
+      added.getCell(9).font = { name: "Calibri", size: 11, bold: true, color: { argb: "FF8A2F2F" } };
+    }
     if (row.needsBooking) {
-      added.getCell(9).fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFDCEEE9" } };
       added.getCell(10).fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFDCEEE9" } };
-      added.getCell(12).fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFDCEEE9" } };
-      added.getCell(10).font = { name: "Calibri", size: 11, bold: true };
+      added.getCell(11).fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFDCEEE9" } };
+      added.getCell(13).fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFDCEEE9" } };
+      added.getCell(11).font = { name: "Calibri", size: 11, bold: true };
     }
   }
 
@@ -82,6 +90,7 @@ export async function hrToXlsxBuffer(hr) {
     { width: 8 },
     { width: 10 },
     { width: 10 },
+    { width: 12 },
     { width: 22 },
     { width: 12 },
     { width: 12 },
