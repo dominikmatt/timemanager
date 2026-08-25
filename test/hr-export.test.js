@@ -38,19 +38,21 @@ describe("hr export", () => {
     assert.equal(row.k2, "12:15");
     assert.equal(row.g2, "16:01");
     assert.equal(row.ist, "9:00");
-    assert.match(row.extraText, /06:45–07:29 Auswärts/);
-    assert.match(row.extraText, /16:33–17:00/);
+    assert.match(row.extraText, /06:45–07:29 Auswärts\n16:33–17:00/);
     assert.doesNotMatch(row.extraText, /07:44/);
     assert.equal(row.extraKind, "Auswärts, Auswärts nach Büro");
     assert.equal(row.extraDuration, "1:11");
     assert.equal(row.extraMinutes, 44 + 27);
+    assert.equal(row.pauseDuration, "1:15");
+    assert.equal(row.pauseMinutes, 75);
     assert.match(row.instruction, /nicht ändern/);
     assert.equal(row.needsBooking, true);
 
     const csv = hrToCsv({ legend: "Legende", rows: [row] });
     assert.match(csv, /07:44;11:47;12:15;16:01/);
-    assert.match(csv, /Art;Zusatzzeit;Zusätzlich buchen/);
+    assert.match(csv, /Art;Zusatzzeit;Pausezeit;Zusätzlich buchen/);
     assert.match(csv, /1:11/);
+    assert.match(csv, /1:15/);
   });
 
   it("asks HR to book sickness when the PDF has no punches", () => {

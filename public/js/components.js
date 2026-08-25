@@ -186,6 +186,45 @@ function toCsv(result) {
   return [header.join(";"), ...rows].join("\n");
 }
 
+function dayHasStamps(day) {
+  if (day.office?.intervals?.length || day.office?.punches?.length) return true;
+  if (day.crew?.intervals?.length || day.crew?.istMinutes) return true;
+  if (["vacation", "compensation", "sickness"].includes(day.kind)) return true;
+  if (day.crew?.absence) return true;
+  return false;
+}
+
+function sumTotals(days) {
+  return days.reduce(
+    (acc, day) => {
+      acc.officeIst += day.office?.istMinutes || 0;
+      acc.crewIst += day.crew?.istMinutes || 0;
+      acc.reconciledIst += day.reconciledIstMinutes || 0;
+      acc.officeSoll += day.officeSollMinutes || 0;
+      acc.free += day.freeMinutes || 0;
+      return acc;
+    },
+    { officeIst: 0, crewIst: 0, reconciledIst: 0, officeSoll: 0, free: 0 },
+  );
+}
+
+function visibleResult(result, ignoreEmpty) {
+  if (!ignoreEmpty) return result;
+  const days = (result.days || []).filter(dayHasStamps);
+  const isos = new Set(days.map((day) => day.iso));
+  const hr = result.hr
+    ? {
+        ...result.hr,
+        rows: (result.hr.rows || []).filter((row) => isos.has(row.iso)),
+      }
+    : result.hr;
+  if (hr) {
+    hr.toBook = hr.rows.filter((row) => row.needsBooking).length;
+    hr.unchanged = hr.rows.filter((row) => row.hasOfficePunches).length;
+  }
+  return { ...result, days, totals: sumTotals(days), hr };
+}
+
 function downloadBlob(data, filename, type) {
   const blob = data instanceof Blob ? data : new Blob([data], { type });
   const url = URL.createObjectURL(blob);
@@ -211,7 +250,8 @@ function hrPanel(hr) {
         <td>${row.soll || "—"}</td>
         <td>${row.extraKind || "—"}</td>
         <td class="kg extra-time">${row.extraDuration || "—"}</td>
-        <td>${row.extraText || "—"}</td>
+        <td class="kg">${row.pauseDuration || "—"}</td>
+        <td>${row.extraText ? row.extraText.replaceAll("\n", "<br>") : "—"}</td>
         <td>${row.instruction}</td>
       </tr>`;
     })
@@ -241,6 +281,7 @@ function hrPanel(hr) {
               <th>Sollzeit</th>
               <th>Art</th>
               <th>Zusatzzeit</th>
+              <th>Pausezeit</th>
               <th>Zusätzlich buchen</th>
               <th>Anweisung</th>
             </tr>
@@ -288,6 +329,7 @@ function printHr(hr) {
 
 export class TimeResultTable extends HTMLElement {
   #result = null;
+  #ignoreEmpty = true;
 
   set result(value) {
     this.#result = value;
@@ -304,8 +346,10 @@ export class TimeResultTable extends HTMLElement {
       return;
     }
 
-    const totals = this.#result.totals;
-    const rows = this.#result.days
+    const view = visibleResult(this.#result, this.#ignoreEmpty);
+    const totals = view.totals;
+    const allDays = this.#result.days.length;
+    const rows = view.days
       .map((day) => {
         const pause = pauseLabel(day);
         const warnClass = day.warnings?.length ? " warn" : "";
@@ -332,9 +376,15 @@ export class TimeResultTable extends HTMLElement {
           <div><span>Büro Soll</span><strong>${duration(totals.officeSoll)}</strong></div>
           <div><span>Freizeit</span><strong>${duration(totals.free)}</strong></div>
           <div><span>Crewmeister-Dateien</span><strong>${this.#result.crewFiles || 0}</strong></div>
-          <div><span>Zeitraum</span><strong>${germanRange(this.#result.crewRange)} · ${this.#result.days.length} Tage</strong></div>
+          <div><span>Zeitraum</span><strong>${germanRange(this.#result.crewRange)} · ${view.days.length}${
+            this.#ignoreEmpty && view.days.length !== allDays ? ` von ${allDays}` : ""
+          } Tage</strong></div>
         </div>
         <div class="actions">
+          <label class="toggle">
+            <input type="checkbox" data-ignore-empty ${this.#ignoreEmpty ? "checked" : ""} />
+            Tage ohne Stempelungen ignorieren
+          </label>
           <button class="ghost" type="button" data-csv>Internes CSV</button>
         </div>
         <div class="table-wrap">
@@ -354,23 +404,27 @@ export class TimeResultTable extends HTMLElement {
           </table>
         </div>
       </section>
-      ${hrPanel(this.#result.hr)}
+      ${hrPanel(view.hr)}
     `;
-    this.querySelector("[data-csv]").addEventListener("click", () => {
-      downloadBlob(toCsv(this.#result), "zeitabgleich.csv", "text/csv;charset=utf-8");
+    this.querySelector("[data-ignore-empty]")?.addEventListener("change", (event) => {
+      this.#ignoreEmpty = event.target.checked;
+      this.render();
     });
-    this.querySelector("[data-hr-xlsx]")?.addEventListener("click", () => this.#downloadHrXlsx());
-    this.querySelector("[data-hr-print]")?.addEventListener("click", () => printHr(this.#result.hr));
+    this.querySelector("[data-csv]").addEventListener("click", () => {
+      downloadBlob(toCsv(view), "zeitabgleich.csv", "text/csv;charset=utf-8");
+    });
+    this.querySelector("[data-hr-xlsx]")?.addEventListener("click", () => this.#downloadHrXlsx(view));
+    this.querySelector("[data-hr-print]")?.addEventListener("click", () => printHr(view.hr));
   }
 
-  async #downloadHrXlsx() {
+  async #downloadHrXlsx(view) {
     const button = this.querySelector("[data-hr-xlsx]");
     button.disabled = true;
     try {
       const response = await fetch("/api/hr.xlsx", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ hr: this.#result.hr }),
+        body: JSON.stringify({ hr: view.hr }),
       });
       if (!response.ok) {
         const payload = await response.json().catch(() => ({}));

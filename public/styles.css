@@ -137,6 +137,23 @@ button.ghost,
   border: 1px solid var(--line);
 }
 
+label.toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  margin: 0;
+  font-family: ui-sans-serif, system-ui, sans-serif;
+  font-size: 0.9rem;
+  cursor: pointer;
+  color: var(--ink);
+}
+
+label.toggle input {
+  width: 1.05rem;
+  height: 1.05rem;
+  accent-color: var(--ink);
+}
+
 .error {
   margin: 0.85rem 0 0;
   color: var(--warn);

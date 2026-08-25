@@ -89,7 +89,9 @@ export function buildHrRow(day) {
     extraKind,
     extraMinutes: needsBooking ? extraMinutes : null,
     extraDuration: needsBooking ? minutesToDuration(extraMinutes) : "",
-    extraText: extras.map((item) => item.text).join("; "),
+    pauseMinutes: day.freeMinutes || 0,
+    pauseDuration: minutesToDuration(day.freeMinutes || 0) || "0:00",
+    extraText: extras.map((item) => item.text).join("\n"),
     instruction: instruction(day, extras, hasOfficePunches),
     needsBooking,
     hasOfficePunches,
@@ -107,7 +109,7 @@ export function buildHrExport(result) {
   return {
     title: result.officeTitle || "Arbeitszeiten",
     legend:
-      "Spalten K und G sind die Stempel aus der Büro-Auswertung (PDF). Diese Zeiten nicht ändern. Art und Zusatzzeit sind die Nachbuchung.",
+      "Spalten K und G sind die Stempel aus der Büro-Auswertung (PDF). Diese Zeiten nicht ändern. Art, Zusatzzeit und Pausezeit sind die Nachbuchungsdaten.",
     rows,
     toBook: rows.filter((row) => row.needsBooking).length,
     unchanged: rows.filter((row) => row.hasOfficePunches).length,
@@ -126,6 +128,7 @@ export function hrToCsv(hr) {
     "Sollzeit",
     "Art",
     "Zusatzzeit",
+    "Pausezeit",
     "Zusätzlich buchen",
     "Anweisung",
   ];
@@ -144,6 +147,7 @@ export function hrToCsv(hr) {
         row.soll,
         row.extraKind,
         row.extraDuration,
+        row.pauseDuration,
         row.extraText,
         row.instruction,
       ]
