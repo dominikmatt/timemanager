@@ -1,0 +1,16 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": null,
+  "regions": ["fra1"],
+  "rewrites": [
+    { "source": "/api/hr.xlsx", "destination": "/api/hr" }
+  ],
+  "functions": {
+    "api/compare.js": {
+      "maxDuration": 30
+    },
+    "api/hr.js": {
+      "maxDuration": 30
+    }
+  }
+}
