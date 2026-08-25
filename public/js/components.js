@@ -108,6 +108,8 @@ function pauseLabel(day) {
   }
   return "—";
 }
+
+function toCsv(result) {
   const header = [
     "Datum",
     "WT",
