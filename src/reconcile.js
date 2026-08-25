@@ -6,8 +6,22 @@ import {
   splitPause,
   subtractIntervals,
   weekdayDe,
+  weekdaySollMinutes,
+  eachIso,
 } from "./time-utils.js";
 import { absenceCreditMinutes, detectAbsence } from "./absence.js";
+
+export const CREW_IST_TOLERANCE_MINUTES = 5;
+
+function alignWithCrewIst(calculated, crewIst, warnings) {
+  if (crewIst == null) return calculated;
+  const delta = Math.round(calculated) - Math.round(crewIst);
+  if (Math.abs(delta) <= CREW_IST_TOLERANCE_MINUTES) return Math.round(crewIst);
+  warnings.push(
+    `Abgleich-Ist ${minutesToDuration(calculated)} weicht von Crewmeister-Ist ${minutesToDuration(crewIst)} um ${Math.abs(delta)} Min ab (Toleranz ±${CREW_IST_TOLERANCE_MINUTES} Min).`,
+  );
+  return calculated;
+}
 
 function listIntervals(intervals) {
   return intervals.map(formatInterval).join(", ");
@@ -56,6 +70,16 @@ function isWeekendModel(model) {
   return /\b[67]\b/.test(model) && !/\b5[56]\b/.test(model);
 }
 
+export function freeMinutesForDay(day) {
+  const lunch = (day.lunchIntervals || []).reduce((sum, interval) => sum + intervalDuration(interval), 0);
+  const free = (day.freeIntervals || []).reduce((sum, interval) => sum + intervalDuration(interval), 0);
+  if (lunch || free) return lunch + free;
+  if (day.pauseSplit) {
+    return (day.pauseSplit.lunch || 0) + (day.pauseSplit.morningFree || 0) + (day.pauseSplit.eveningFree || 0);
+  }
+  return day.crew?.pauseMinutes || 0;
+}
+
 function generateNote(day) {
   const parts = [];
   const office = day.office;
@@ -87,10 +111,10 @@ function generateNote(day) {
     );
     if (added.length) {
       parts.push(
-        `Ergänzt aus Crewmeister: ${added.map((i) => `${formatInterval(i)} (${i.type === "on_the_way" ? "Arbeitsweg" : "nach Büro"})`).join(", ")}.`,
+        `Ergänzt aus Crewmeister: ${added.map((i) => `${formatInterval(i)} (${i.type === "on_the_way" ? "Auswärts" : "Auswärts nach Büro"})`).join(", ")}.`,
       );
     } else if (crew?.intervals?.length) {
-      parts.push("Kein zusätzlicher Arbeitsweg außerhalb der Bürozeit und Freizeitpuffer.");
+      parts.push("Keine zusätzliche Auswärtszeit außerhalb der Bürozeit und Freizeitpuffer.");
     } else {
       parts.push("Keine Crewmeister-Zeiten für diesen Tag.");
     }
@@ -133,6 +157,8 @@ function generateNote(day) {
     );
   } else if (crew && !crew.intervals.length && crew.sollMinutes) {
     parts.push("Nur in Crewmeister, ohne Zeiten. Nichts übernommen.");
+  } else if (day.weekday === "Sa" || day.weekday === "So") {
+    parts.push("Wochenende. Keine Sollzeit.");
   } else {
     parts.push("Keine Zeiten in beiden Quellen.");
   }
@@ -200,8 +226,9 @@ function reconcileOfficeDay(office, crew) {
   }
 
   const addedWork = leftover.filter((i) => i.type === "on_the_way" || i.type === "after_office");
-  const officeIst = office.istMinutes ?? officeIntervals.reduce((sum, i) => sum + intervalDuration(i), 0);
-  const reconciledIstMinutes = officeIst + addedWork.reduce((sum, i) => sum + intervalDuration(i), 0);
+  const officeIst = officeIntervals.reduce((sum, i) => sum + intervalDuration(i), 0);
+  const calculatedIst = officeIst + addedWork.reduce((sum, i) => sum + intervalDuration(i), 0);
+  const reconciledIstMinutes = alignWithCrewIst(calculatedIst, crew?.istMinutes, warnings);
 
   const reconciledIntervals = [
     ...leftover.filter((i) => i.type !== "extra"),
@@ -239,7 +266,8 @@ function reconcileRemoteDay(office, crew) {
       ...interval,
       type: "homeoffice",
     }));
-    reconciledIstMinutes = crew.istMinutes || crew.intervals.reduce((sum, i) => sum + intervalDuration(i), 0);
+    const fromIntervals = crew.intervals.reduce((sum, i) => sum + intervalDuration(i), 0);
+    reconciledIstMinutes = alignWithCrewIst(crew.istMinutes || fromIntervals, crew.istMinutes, warnings);
     kind = "homeoffice";
   }
 
@@ -261,8 +289,8 @@ function reconcileRemoteDay(office, crew) {
   };
 }
 
-export function reconcileDay(office, crew) {
-  const iso = office?.iso || crew?.iso;
+export function reconcileDay(office, crew, isoHint = null) {
+  const iso = office?.iso || crew?.iso || isoHint;
   const result = {
     iso,
     date: isoToGermanDate(iso),
@@ -275,7 +303,8 @@ export function reconcileDay(office, crew) {
     freeIntervals: [],
     reconciledIntervals: [],
     reconciledIstMinutes: 0,
-    officeSollMinutes: office?.sollMinutes ?? crew?.sollMinutes ?? null,
+    officeSollMinutes: weekdaySollMinutes(iso, office?.weekday),
+    freeMinutes: 0,
     kind: "empty",
     absenceDays: null,
     absenceLabel: null,
@@ -288,6 +317,7 @@ export function reconcileDay(office, crew) {
     Object.assign(result, reconcileRemoteDay(office, crew));
   }
 
+  result.freeMinutes = freeMinutesForDay(result);
   result.note = generateNote(result);
   return result;
 }
@@ -295,20 +325,23 @@ export function reconcileDay(office, crew) {
 export function reconcile(officeDoc, crewDoc) {
   const officeByIso = new Map((officeDoc.days || []).map((d) => [d.iso, d]));
   const crewByIso = new Map((crewDoc.days || []).map((d) => [d.iso, d]));
-  const isos = new Set([...officeByIso.keys(), ...crewByIso.keys()]);
-  const days = [...isos].sort().map((iso) =>
-    reconcileDay(officeByIso.get(iso) || null, crewByIso.get(iso) || null),
-  );
+  const keys = [...officeByIso.keys(), ...crewByIso.keys()].sort();
+  const days = keys.length
+    ? eachIso(keys[0], keys[keys.length - 1]).map((iso) =>
+        reconcileDay(officeByIso.get(iso) || null, crewByIso.get(iso) || null, iso),
+      )
+    : [];
 
   const totals = days.reduce(
     (acc, day) => {
       acc.officeIst += day.office?.istMinutes || 0;
       acc.crewIst += day.crew?.istMinutes || 0;
       acc.reconciledIst += day.reconciledIstMinutes || 0;
-      acc.officeSoll += day.office?.sollMinutes || 0;
+      acc.officeSoll += day.officeSollMinutes || 0;
+      acc.free += day.freeMinutes || 0;
       return acc;
     },
-    { officeIst: 0, crewIst: 0, reconciledIst: 0, officeSoll: 0 },
+    { officeIst: 0, crewIst: 0, reconciledIst: 0, officeSoll: 0, free: 0 },
   );
 
   return {

@@ -1,9 +1,9 @@
-import { formatInterval, minutesToClock, minutesToDuration } from "./time-utils.js";
+import { formatInterval, intervalDuration, minutesToClock, minutesToDuration } from "./time-utils.js";
 import { detectAbsence } from "./absence.js";
 
 const EXTRA_LABEL = {
-  on_the_way: "Arbeitsweg",
-  after_office: "Arbeitsweg nach Büro",
+  on_the_way: "Auswärts",
+  after_office: "Auswärts nach Büro",
   homeoffice: "Homeoffice",
   sickness: "Krankheit",
   vacation: "Urlaub",
@@ -28,6 +28,7 @@ function extrasForDay(day) {
         label: EXTRA_LABEL[interval.type],
         from: minutesToClock(interval.start),
         to: minutesToClock(interval.end),
+        minutes: intervalDuration(interval),
         text: `${formatInterval(interval)} ${EXTRA_LABEL[interval.type]}`,
       });
     }
@@ -40,6 +41,7 @@ function extrasForDay(day) {
         label: absence.label,
         from: "",
         to: "",
+        minutes: day.reconciledIstMinutes || 0,
         text: `${absence.label} ${absence.days} Tag`,
       });
     }
@@ -74,16 +76,19 @@ export function buildHrRow(day) {
   const extras = extrasForDay(day);
   const hasOfficePunches = punches.length > 0;
   const needsBooking = extras.length > 0;
+  const extraMinutes = extras.reduce((sum, extra) => sum + (extra.minutes || 0), 0);
+  const extraKind = [...new Set(extras.map((extra) => extra.label))].join(", ");
   return {
     iso: day.iso,
     date: day.date,
     weekday: day.weekday,
     ...clocks,
-    ist: hasOfficePunches
-      ? minutesToDuration(day.office?.istMinutes)
-      : minutesToDuration(day.reconciledIstMinutes),
+    ist: minutesToDuration(day.reconciledIstMinutes),
     soll: minutesToDuration(day.officeSollMinutes) || "",
     extras,
+    extraKind,
+    extraMinutes: needsBooking ? extraMinutes : null,
+    extraDuration: needsBooking ? minutesToDuration(extraMinutes) : "",
     extraText: extras.map((item) => item.text).join("; "),
     instruction: instruction(day, extras, hasOfficePunches),
     needsBooking,
@@ -102,7 +107,7 @@ export function buildHrExport(result) {
   return {
     title: result.officeTitle || "Arbeitszeiten",
     legend:
-      "Spalten K und G sind die Stempel aus der Büro-Auswertung (PDF). Diese Zeiten nicht ändern. Nur „Zusätzlich buchen“ nachtragen.",
+      "Spalten K und G sind die Stempel aus der Büro-Auswertung (PDF). Diese Zeiten nicht ändern. Art und Zusatzzeit sind die Nachbuchung.",
     rows,
     toBook: rows.filter((row) => row.needsBooking).length,
     unchanged: rows.filter((row) => row.hasOfficePunches).length,
@@ -119,6 +124,8 @@ export function hrToCsv(hr) {
     "G",
     "Istzeit",
     "Sollzeit",
+    "Art",
+    "Zusatzzeit",
     "Zusätzlich buchen",
     "Anweisung",
   ];
@@ -135,6 +142,8 @@ export function hrToCsv(hr) {
         row.g2,
         row.ist,
         row.soll,
+        row.extraKind,
+        row.extraDuration,
         row.extraText,
         row.instruction,
       ]

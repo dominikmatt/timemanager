@@ -1,3 +1,5 @@
+import { weekdaySollMinutes } from "./time-utils.js";
+
 export function detectAbsence(crew) {
   const text = `${crew?.absence || ""} ${crew?.comment || ""}`.trim();
   if (!text) return null;
@@ -16,6 +18,7 @@ export function detectAbsence(crew) {
 }
 
 export function absenceCreditMinutes(office, crew, days = 1) {
-  const soll = office?.sollMinutes || crew?.sollMinutes || crew?.istMinutes || 0;
+  const iso = office?.iso || crew?.iso;
+  const soll = weekdaySollMinutes(iso, office?.weekday);
   return Math.round(soll * days);
 }

@@ -1,7 +1,7 @@
 const TYPE_LABEL = {
   office: "Büro",
-  on_the_way: "Weg",
-  after_office: "Danach",
+  on_the_way: "Auswärts",
+  after_office: "Auswärts",
   homeoffice: "Homeoffice",
   sickness: "Krankheit",
   vacation: "Urlaub",
@@ -20,13 +20,17 @@ export class FileCompareForm extends HTMLElement {
             <input id="office" name="office" type="file" accept=".pdf,application/pdf" required />
           </div>
           <div class="file-field">
-            <label for="crewmeister">Crewmeister (xlsx, mehrere möglich)</label>
-            <input id="crewmeister" name="crewmeister" type="file" multiple accept=".xlsx,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" required />
+            <label for="crewmeister">Crewmeister 1. Monat</label>
+            <input id="crewmeister" name="crewmeister" type="file" accept=".xlsx,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" required />
+          </div>
+          <div class="file-field">
+            <label for="crewmeister2">Crewmeister 2. Monat</label>
+            <input id="crewmeister2" name="crewmeister" type="file" multiple accept=".xlsx,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" />
           </div>
         </div>
         <div class="actions">
           <button type="submit">Abgleichen</button>
-          <p class="muted">Dateien bleiben auf diesem Rechner. Mehrere Crewmeister-Monate mit Strg/Cmd wählen.</p>
+          <p class="muted">Beide Monats-Exporte wählen. Alle Tage dazwischen werden berechnet, auch Wochenenden.</p>
         </div>
         <p class="error" hidden></p>
       </form>
@@ -45,7 +49,9 @@ export class FileCompareForm extends HTMLElement {
     try {
       const form = this.querySelector("form");
       const office = form.office.files[0];
-      const crewFiles = [...form.crewmeister.files];
+      const crewFiles = [...form.querySelectorAll('input[name="crewmeister"]')].flatMap(
+        (input) => [...input.files],
+      );
       if (!office) throw new Error("Bitte das Büro-PDF hochladen.");
       if (!crewFiles.length) throw new Error("Bitte mindestens eine Crewmeister-Datei wählen.");
       const body = new FormData();
@@ -72,6 +78,15 @@ function duration(minutes) {
   const sign = rounded < 0 ? "-" : "";
   const abs = Math.abs(rounded);
   return `${sign}${Math.floor(abs / 60)}:${String(abs % 60).padStart(2, "0")}`;
+}
+
+function germanRange(range) {
+  if (!range?.from) return "—";
+  const fmt = (iso) => {
+    const [year, month, day] = iso.split("-");
+    return `${day}.${month}.${year}`;
+  };
+  return `${fmt(range.from)}–${fmt(range.to)}`;
 }
 
 function clock(minutes) {
@@ -142,6 +157,7 @@ function toCsv(result) {
     "Abgleich Ist",
     "Büro Soll",
     "Pause",
+    "Freizeit",
     "Hinweis",
   ];
   const rows = result.days.map((day) => {
@@ -163,6 +179,7 @@ function toCsv(result) {
       duration(day.reconciledIstMinutes),
       duration(day.officeSollMinutes),
       pause,
+      duration(day.freeMinutes),
       day.note,
     ].map(csvEscape).join(";");
   });
@@ -192,6 +209,8 @@ function hrPanel(hr) {
         <td class="kg">${row.g2 || "—"}</td>
         <td>${row.ist || "—"}</td>
         <td>${row.soll || "—"}</td>
+        <td>${row.extraKind || "—"}</td>
+        <td class="kg extra-time">${row.extraDuration || "—"}</td>
         <td>${row.extraText || "—"}</td>
         <td>${row.instruction}</td>
       </tr>`;
@@ -220,6 +239,8 @@ function hrPanel(hr) {
               <th>G</th>
               <th>Istzeit</th>
               <th>Sollzeit</th>
+              <th>Art</th>
+              <th>Zusatzzeit</th>
               <th>Zusätzlich buchen</th>
               <th>Anweisung</th>
             </tr>
@@ -296,6 +317,7 @@ export class TimeResultTable extends HTMLElement {
           <td>${crewLabel(day)}<div>Ist ${duration(day.crew?.istMinutes)}</div></td>
           <td>${absenceChip(day) || chips(day.reconciledIntervals)}<div><strong>${duration(day.reconciledIstMinutes)}</strong> / Soll ${duration(day.officeSollMinutes)}</div></td>
           <td>${pause}</td>
+          <td><strong>${duration(day.freeMinutes)}</strong></td>
           <td class="note${warnClass}">${day.note}</td>
         </tr>`;
       })
@@ -308,6 +330,9 @@ export class TimeResultTable extends HTMLElement {
           <div><span>Crewmeister Ist</span><strong>${duration(totals.crewIst)}</strong></div>
           <div><span>Abgleich Ist</span><strong>${duration(totals.reconciledIst)}</strong></div>
           <div><span>Büro Soll</span><strong>${duration(totals.officeSoll)}</strong></div>
+          <div><span>Freizeit</span><strong>${duration(totals.free)}</strong></div>
+          <div><span>Crewmeister-Dateien</span><strong>${this.#result.crewFiles || 0}</strong></div>
+          <div><span>Zeitraum</span><strong>${germanRange(this.#result.crewRange)} · ${this.#result.days.length} Tage</strong></div>
         </div>
         <div class="actions">
           <button class="ghost" type="button" data-csv>Internes CSV</button>
@@ -321,6 +346,7 @@ export class TimeResultTable extends HTMLElement {
                 <th>Crewmeister</th>
                 <th>Abgleich</th>
                 <th>Pause</th>
+                <th>Freizeit</th>
                 <th>Hinweis</th>
               </tr>
             </thead>

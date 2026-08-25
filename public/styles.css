@@ -273,8 +273,13 @@ td.note {
 }
 
 .hr-table tr.needs td:nth-child(8),
-.hr-table tr.needs td:nth-child(9) {
+.hr-table tr.needs td:nth-child(9),
+.hr-table tr.needs td:nth-child(10) {
   background: var(--way-bg);
+}
+
+.hr-table .extra-time {
+  color: var(--way);
 }
 
 @media print {

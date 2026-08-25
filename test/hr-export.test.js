@@ -37,16 +37,20 @@ describe("hr export", () => {
     assert.equal(row.g1, "11:47");
     assert.equal(row.k2, "12:15");
     assert.equal(row.g2, "16:01");
-    assert.equal(row.ist, "7:34");
-    assert.match(row.extraText, /06:45–07:29 Arbeitsweg/);
+    assert.equal(row.ist, "9:00");
+    assert.match(row.extraText, /06:45–07:29 Auswärts/);
     assert.match(row.extraText, /16:33–17:00/);
     assert.doesNotMatch(row.extraText, /07:44/);
+    assert.equal(row.extraKind, "Auswärts, Auswärts nach Büro");
+    assert.equal(row.extraDuration, "1:11");
+    assert.equal(row.extraMinutes, 44 + 27);
     assert.match(row.instruction, /nicht ändern/);
     assert.equal(row.needsBooking, true);
 
     const csv = hrToCsv({ legend: "Legende", rows: [row] });
     assert.match(csv, /07:44;11:47;12:15;16:01/);
-    assert.match(csv, /Zusätzlich buchen/);
+    assert.match(csv, /Art;Zusatzzeit;Zusätzlich buchen/);
+    assert.match(csv, /1:11/);
   });
 
   it("asks HR to book sickness when the PDF has no punches", () => {
@@ -73,6 +77,8 @@ describe("hr export", () => {
     assert.equal(row.k1, "");
     assert.equal(row.g1, "");
     assert.match(row.extraText, /Krankheit/);
+    assert.equal(row.extraKind, "Krankheit");
+    assert.equal(row.extraDuration, "7:42");
     assert.match(row.instruction, /Krankheit nachbuchen/);
   });
 
@@ -101,6 +107,8 @@ describe("hr export", () => {
     );
     assert.equal(holiday.ist, "5:22");
     assert.equal(holiday.soll, "5:22");
+    assert.equal(holiday.extraKind, "Urlaub");
+    assert.equal(holiday.extraDuration, "5:22");
     assert.match(holiday.extraText, /Urlaub 1 Tag/);
     assert.match(holiday.instruction, /Urlaub nachbuchen/);
 
@@ -128,6 +136,8 @@ describe("hr export", () => {
     );
     assert.equal(compensation.ist, "8:17");
     assert.equal(compensation.soll, "8:17");
+    assert.equal(compensation.extraKind, "Freizeitausgleich");
+    assert.equal(compensation.extraDuration, "8:17");
     assert.match(compensation.extraText, /Freizeitausgleich 1 Tag/);
   });
 });

@@ -8,11 +8,11 @@ export async function hrToXlsxBuffer(hr) {
     pageSetup: { orientation: "landscape", fitToPage: true, fitToWidth: 1, paperSize: 9 },
   });
 
-  sheet.mergeCells("A1:J1");
+  sheet.mergeCells("A1:L1");
   sheet.getCell("A1").value = hr.title;
   sheet.getCell("A1").font = { bold: true, size: 14, name: "Calibri" };
 
-  sheet.mergeCells("A2:J2");
+  sheet.mergeCells("A2:L2");
   sheet.getCell("A2").value = hr.legend;
   sheet.getCell("A2").font = { italic: true, size: 11, name: "Calibri", color: { argb: "FF5C564C" } };
   sheet.getCell("A2").alignment = { wrapText: true, vertical: "middle" };
@@ -27,6 +27,8 @@ export async function hrToXlsxBuffer(hr) {
     "G",
     "Istzeit",
     "Sollzeit",
+    "Art",
+    "Zusatzzeit",
     "Zusätzlich buchen",
     "Anweisung",
   ];
@@ -50,6 +52,8 @@ export async function hrToXlsxBuffer(hr) {
       row.g2,
       row.ist,
       row.soll,
+      row.extraKind,
+      row.extraDuration,
       row.extraText,
       row.instruction,
     ]);
@@ -62,6 +66,8 @@ export async function hrToXlsxBuffer(hr) {
     if (row.needsBooking) {
       added.getCell(9).fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFDCEEE9" } };
       added.getCell(10).fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFDCEEE9" } };
+      added.getCell(11).fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFDCEEE9" } };
+      added.getCell(10).font = { name: "Calibri", size: 11, bold: true };
     }
   }
 
@@ -74,6 +80,8 @@ export async function hrToXlsxBuffer(hr) {
     { width: 8 },
     { width: 10 },
     { width: 10 },
+    { width: 22 },
+    { width: 12 },
     { width: 42 },
     { width: 55 },
   ];

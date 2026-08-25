@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { reconcileDay } from "../src/reconcile.js";
+import { reconcile, reconcileDay } from "../src/reconcile.js";
 import { parseTimeToMinutes } from "../src/time-utils.js";
 
 function t(value) {
@@ -53,7 +53,9 @@ describe("reconcileDay", () => {
     assert.equal(byType["free:evening"].end, t("16:33"));
     assert.equal(byType["after_office:"].start, t("16:33"));
     assert.equal(byType["after_office:"].end, t("17:00"));
-    assert.equal(day.reconciledIstMinutes, t("7:34") + 44 + 27);
+    assert.equal(day.reconciledIstMinutes, 9 * 60);
+    assert.equal(Math.abs(day.reconciledIstMinutes - crew.istMinutes) <= 5, true);
+    assert.equal(day.freeMinutes, 28 + 15 + 32);
     assert.match(day.note, /unverändert/);
     assert.match(day.note, /11:47–12:15 \(28 Min\)/);
     assert.doesNotMatch(day.note, /Mittag 30/);
@@ -90,6 +92,41 @@ describe("reconcileDay", () => {
     assert.match(day.note, /KRK/);
   });
 
+  it("uses weekday Soll even when files show a different target", () => {
+    const monday = reconcileDay(
+      {
+        iso: "2026-08-03",
+        weekday: "Mo",
+        punches: [],
+        intervals: [],
+        istMinutes: null,
+        sollMinutes: 0,
+        dayModel: "55",
+      },
+      {
+        iso: "2026-08-03",
+        intervals: [{ start: t("07:15"), end: t("17:00") }],
+        pauseMinutes: 45,
+        istMinutes: 9 * 60,
+        sollMinutes: Math.round(7.7 * 60),
+        comment: "homeoffice",
+        absence: "",
+      },
+    );
+    const friday = reconcileDay(null, {
+      iso: "2026-08-21",
+      intervals: [],
+      pauseMinutes: 0,
+      istMinutes: 0,
+      sollMinutes: Math.round(7.7 * 60),
+      comment: "",
+      absence: "Urlaub (1)",
+    });
+    assert.equal(monday.officeSollMinutes, t("8:17"));
+    assert.equal(friday.officeSollMinutes, t("5:22"));
+    assert.equal(friday.reconciledIstMinutes, t("5:22"));
+  });
+
   it("credits a full Urlaub day so Ist equals office Soll", () => {
     const office = {
       iso: "2026-08-21",
@@ -113,6 +150,7 @@ describe("reconcileDay", () => {
     assert.equal(day.kind, "vacation");
     assert.equal(day.reconciledIstMinutes, t("5:22"));
     assert.equal(day.reconciledIstMinutes, day.officeSollMinutes);
+    assert.equal(day.freeMinutes, 0);
     assert.match(day.note, /Urlaub/);
     assert.match(day.note, /Ist auf Soll/);
   });
@@ -168,7 +206,71 @@ describe("reconcileDay", () => {
     assert.equal(day.reconciledIntervals[0].start, t("07:15"));
     assert.equal(day.reconciledIntervals[0].end, t("17:30"));
     assert.equal(day.reconciledIstMinutes, 9 * 60);
+    assert.equal(day.freeMinutes, 75);
     assert.match(day.note, /Homeoffice/);
-    assert.doesNotMatch(day.note, /Arbeitsweg/);
+    assert.doesNotMatch(day.note, /Auswärts/);
+  });
+
+  it("snaps Abgleich Ist to Crewmeister Ist when they differ by at most 5 minutes", () => {
+    const office = {
+      iso: "2026-08-04",
+      weekday: "Di",
+      punches: [t("07:44"), t("11:47"), t("12:15"), t("16:01")],
+      intervals: [
+        { start: t("07:44"), end: t("11:47"), type: "office" },
+        { start: t("12:15"), end: t("16:01"), type: "office" },
+      ],
+      istMinutes: t("7:34"),
+      sollMinutes: t("8:17"),
+      dayModel: "55",
+    };
+    const crew = {
+      iso: "2026-08-04",
+      intervals: [{ start: t("06:45"), end: t("17:00") }],
+      pauseMinutes: 75,
+      istMinutes: 9 * 60 + 3,
+      comment: "",
+      absence: "",
+    };
+    const day = reconcileDay(office, crew);
+    assert.equal(day.reconciledIstMinutes, 9 * 60 + 3);
+    assert.equal(day.warnings.length, 0);
+  });
+});
+
+describe("reconcile", () => {
+  it("fills every calendar day between the first and last source date", () => {
+    const result = reconcile(
+      {
+        days: [
+          {
+            iso: "2026-07-03",
+            weekday: "Fr",
+            punches: [],
+            intervals: [],
+            istMinutes: null,
+            sollMinutes: 0,
+          },
+        ],
+      },
+      {
+        days: [
+          {
+            iso: "2026-07-06",
+            intervals: [],
+            pauseMinutes: 0,
+            istMinutes: 0,
+            absence: "Freizeitausgleich (1)",
+          },
+        ],
+      },
+    );
+    assert.deepEqual(
+      result.days.map((day) => day.iso),
+      ["2026-07-03", "2026-07-04", "2026-07-05", "2026-07-06"],
+    );
+    assert.equal(result.days[3].kind, "compensation");
+    assert.match(result.days[1].note, /Wochenende/);
+    assert.equal(result.days[1].officeSollMinutes, 0);
   });
 });

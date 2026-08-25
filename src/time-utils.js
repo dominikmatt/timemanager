@@ -63,6 +63,33 @@ export function weekdayDe(iso) {
   return names[new Date(Date.UTC(y, m - 1, d)).getUTCDay()];
 }
 
+/** Contract Soll: Mo–Do 8:17, Fr 5:22, weekend 0. */
+export const WEEKDAY_SOLL_MINUTES = {
+  Mo: 8 * 60 + 17,
+  Di: 8 * 60 + 17,
+  Mi: 8 * 60 + 17,
+  Do: 8 * 60 + 17,
+  Fr: 5 * 60 + 22,
+};
+
+export function weekdaySollMinutes(iso, weekday = null) {
+  if (!iso && !weekday) return 0;
+  const day = weekday || weekdayDe(iso);
+  return WEEKDAY_SOLL_MINUTES[day] ?? 0;
+}
+
+export function eachIso(from, to) {
+  if (!from || !to || from > to) return [];
+  const days = [];
+  let cursor = new Date(`${from}T00:00:00Z`);
+  const end = new Date(`${to}T00:00:00Z`);
+  while (cursor <= end) {
+    days.push(cursor.toISOString().slice(0, 10));
+    cursor.setUTCDate(cursor.getUTCDate() + 1);
+  }
+  return days;
+}
+
 export function intervalDuration(interval) {
   return Math.max(0, interval.end - interval.start);
 }

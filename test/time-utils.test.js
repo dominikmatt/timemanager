@@ -7,6 +7,8 @@ import {
   punchesToIntervals,
   splitPause,
   subtractIntervals,
+  eachIso,
+  weekdaySollMinutes,
 } from "../src/time-utils.js";
 
 describe("time-utils", () => {
@@ -20,6 +22,26 @@ describe("time-utils", () => {
 
   it("converts Excel serial 46237 to 2026-08-03", () => {
     assert.equal(excelSerialToIso(46237), "2026-08-03");
+  });
+
+  it("uses 8:17 Soll Mon–Thu and 5:22 on Friday", () => {
+    assert.equal(weekdaySollMinutes("2026-08-03"), parseTimeToMinutes("8:17")); // Mo
+    assert.equal(weekdaySollMinutes("2026-08-04"), parseTimeToMinutes("8:17")); // Di
+    assert.equal(weekdaySollMinutes("2026-08-05"), parseTimeToMinutes("8:17")); // Mi
+    assert.equal(weekdaySollMinutes("2026-08-06"), parseTimeToMinutes("8:17")); // Do
+    assert.equal(weekdaySollMinutes("2026-08-07"), parseTimeToMinutes("5:22")); // Fr
+    assert.equal(weekdaySollMinutes("2026-08-08"), 0); // Sa
+    assert.equal(weekdaySollMinutes("2026-08-09"), 0); // So
+  });
+
+  it("lists every calendar day between two dates", () => {
+    assert.deepEqual(eachIso("2026-08-07", "2026-08-10"), [
+      "2026-08-07",
+      "2026-08-08",
+      "2026-08-09",
+      "2026-08-10",
+    ]);
+    assert.deepEqual(eachIso("2026-08-10", "2026-08-07"), []);
   });
 
   it("pairs punches into office intervals", () => {
