@@ -142,6 +142,11 @@ function generateNote(day) {
     parts.push(
       `Keine Büro-Stempel. ${label} übernommen: ${listIntervals(crew.intervals)} (Ist ${minutesToDuration(crew.istMinutes)}, Pause bereits abgezogen).`,
     );
+    if (day.lunchIntervals.length && day.pauseSplit?.lunch) {
+      parts.push(
+        `Gesamte Pause (${minutesToDuration(day.pauseSplit.lunch)}) als Mittag gebucht, da keine einzelnen Stempelungen: ${listIntervals(day.lunchIntervals)}.`,
+      );
+    }
     if (office?.sollMinutes) {
       parts.push(
         `Büro hatte Soll ${minutesToDuration(office.sollMinutes)} ohne Ist — Lücke mit Crewmeister gefüllt, Stempel unverändert (keine).`,
@@ -248,12 +253,28 @@ function reconcileOfficeDay(office, crew) {
   };
 }
 
+function placeHomeofficeLunch(interval, pauseMinutes) {
+  const pause = Math.max(0, Math.round(pauseMinutes || 0));
+  if (!pause || !interval || interval.end - interval.start <= pause) return null;
+  const noon = 12 * 60;
+  let start = noon;
+  if (start < interval.start || start + pause > interval.end) {
+    start = interval.start + Math.floor((interval.end - interval.start - pause) / 2);
+  }
+  if (start < interval.start) start = interval.start;
+  const end = start + pause;
+  if (end > interval.end || (start <= interval.start && end >= interval.end)) return null;
+  return { start, end, type: "lunch" };
+}
+
 function reconcileRemoteDay(office, crew) {
   const warnings = [];
   const absence = detectAbsence(crew);
   let reconciledIntervals = [];
   let reconciledIstMinutes = 0;
   let kind = "empty";
+  let lunchIntervals = [];
+  let pauseSplit = null;
 
   if (absence && (absence.type === "vacation" || absence.type === "compensation")) {
     reconciledIstMinutes = absenceCreditMinutes(office, crew, absence.days);
@@ -269,6 +290,23 @@ function reconcileRemoteDay(office, crew) {
     const fromIntervals = crew.intervals.reduce((sum, i) => sum + intervalDuration(i), 0);
     reconciledIstMinutes = alignWithCrewIst(crew.istMinutes || fromIntervals, crew.istMinutes, warnings);
     kind = "homeoffice";
+    if (crew.intervals.length === 1 && crew.pauseMinutes) {
+      const lunch = placeHomeofficeLunch(crew.intervals[0], crew.pauseMinutes);
+      if (lunch) {
+        lunchIntervals.push(lunch);
+        pauseSplit = {
+          pause: Math.round(crew.pauseMinutes),
+          lunch: intervalDuration(lunch),
+          morningFree: 0,
+          eveningFree: 0,
+        };
+        reconciledIntervals = [
+          { start: crew.intervals[0].start, end: lunch.start, type: "homeoffice" },
+          lunch,
+          { start: lunch.end, end: crew.intervals[0].end, type: "homeoffice" },
+        ].filter((interval) => interval.end > interval.start);
+      }
+    }
   }
 
   if (office?.sollMinutes && !crew) {
@@ -276,8 +314,8 @@ function reconcileRemoteDay(office, crew) {
   }
 
   return {
-    pauseSplit: null,
-    lunchIntervals: [],
+    pauseSplit,
+    lunchIntervals,
     freeIntervals: [],
     warnings,
     reconciledIntervals,

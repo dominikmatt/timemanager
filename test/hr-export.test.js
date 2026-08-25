@@ -142,4 +142,36 @@ describe("hr export", () => {
     assert.equal(compensation.extraDuration, "8:17");
     assert.match(compensation.extraText, /Freizeitausgleich 1 Tag/);
   });
+
+  it("books homeoffice as two blocks with the whole Crewmeister pause as Mittag", () => {
+    const row = buildHrRow(
+      reconcileDay(
+        {
+          iso: "2026-08-12",
+          weekday: "Mi",
+          punches: [],
+          intervals: [],
+          istMinutes: null,
+          sollMinutes: t("8:17"),
+          dayModel: "55",
+        },
+        {
+          iso: "2026-08-12",
+          intervals: [{ start: t("07:15"), end: t("17:30") }],
+          pauseMinutes: 75,
+          istMinutes: 9 * 60,
+          comment: "homeoffice",
+          absence: "",
+        },
+      ),
+    );
+    assert.equal(row.k1, "");
+    assert.equal(row.ist, "9:00");
+    assert.equal(row.extraKind, "Homeoffice");
+    assert.equal(row.extraDuration, "9:00");
+    assert.equal(row.pauseDuration, "1:15");
+    assert.match(row.extraText, /07:15–12:00 Homeoffice\n13:15–17:30 Homeoffice/);
+    assert.doesNotMatch(row.extraText, /Mittag/);
+    assert.match(row.instruction, /Nachbuchen: 07:15–12:00 Homeoffice; 13:15–17:30 Homeoffice/);
+  });
 });

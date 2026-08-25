@@ -74,7 +74,16 @@ describe("sample files", () => {
     const home = byIso["2026-08-12"];
     assert.equal(home.office.intervals.length, 0);
     assert.equal(home.crew.comment, "homeoffice");
-    assert.equal(home.reconciledIntervals[0].type, "homeoffice");
+    assert.equal(home.crew.intervals.length, 1);
+    assert.deepEqual(
+      home.reconciledIntervals.map((interval) => interval.type),
+      ["homeoffice", "lunch", "homeoffice"],
+    );
+    assert.equal(home.lunchIntervals[0].start, parseTimeToMinutes("12:00"));
+    assert.equal(home.lunchIntervals[0].end, parseTimeToMinutes("13:15"));
+    assert.equal(home.pauseSplit.lunch, 75);
+    assert.equal(home.pauseSplit.morningFree, 0);
+    assert.equal(home.pauseSplit.eveningFree, 0);
 
     const friday = byIso["2026-08-07"];
     assert.equal(friday.office.intervals.length, 0);

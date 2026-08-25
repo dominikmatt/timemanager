@@ -201,14 +201,57 @@ describe("reconcileDay", () => {
     };
 
     const day = reconcileDay(office, crew);
-    assert.equal(day.reconciledIntervals.length, 1);
-    assert.equal(day.reconciledIntervals[0].type, "homeoffice");
-    assert.equal(day.reconciledIntervals[0].start, t("07:15"));
-    assert.equal(day.reconciledIntervals[0].end, t("17:30"));
+    assert.deepEqual(
+      day.reconciledIntervals.map((interval) => [interval.type, interval.start, interval.end]),
+      [
+        ["homeoffice", t("07:15"), t("12:00")],
+        ["lunch", t("12:00"), t("13:15")],
+        ["homeoffice", t("13:15"), t("17:30")],
+      ],
+    );
+    assert.deepEqual(day.pauseSplit, {
+      pause: 75,
+      lunch: 75,
+      morningFree: 0,
+      eveningFree: 0,
+    });
+    assert.equal(day.lunchIntervals.length, 1);
     assert.equal(day.reconciledIstMinutes, 9 * 60);
     assert.equal(day.freeMinutes, 75);
     assert.match(day.note, /Homeoffice/);
+    assert.match(day.note, /als Mittag gebucht/);
     assert.doesNotMatch(day.note, /Auswärts/);
+  });
+
+  it("does not invent a Mittag when Crewmeister already has separate bookings", () => {
+    const day = reconcileDay(
+      {
+        iso: "2026-08-12",
+        weekday: "Mi",
+        punches: [],
+        intervals: [],
+        istMinutes: null,
+        sollMinutes: t("8:17"),
+        dayModel: "55",
+      },
+      {
+        iso: "2026-08-12",
+        intervals: [
+          { start: t("07:15"), end: t("12:00") },
+          { start: t("13:15"), end: t("17:30") },
+        ],
+        pauseMinutes: 75,
+        istMinutes: 9 * 60,
+        comment: "homeoffice",
+        absence: "",
+      },
+    );
+    assert.equal(day.lunchIntervals.length, 0);
+    assert.equal(day.pauseSplit, null);
+    assert.deepEqual(
+      day.reconciledIntervals.map((interval) => interval.type),
+      ["homeoffice", "homeoffice"],
+    );
   });
 
   it("snaps Abgleich Ist to Crewmeister Ist when they differ by at most 5 minutes", () => {

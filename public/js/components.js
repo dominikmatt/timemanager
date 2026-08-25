@@ -135,13 +135,11 @@ function pauseLabel(day) {
   const lunch = (day.lunchIntervals || [])
     .map((interval) => `${clock(interval.start)}–${clock(interval.end)}`)
     .join(", ");
-  if (lunch && day.pauseSplit) {
-    return `Mittag ${lunch} · Morgen ${day.pauseSplit.morningFree} Min · Abend ${day.pauseSplit.eveningFree} Min`;
-  }
-  if (day.pauseSplit) {
-    return `Morgen ${day.pauseSplit.morningFree} / Abend ${day.pauseSplit.eveningFree} Min`;
-  }
-  return "—";
+  const parts = [];
+  if (lunch) parts.push(`Mittag ${lunch}`);
+  if (day.pauseSplit?.morningFree) parts.push(`Morgen ${day.pauseSplit.morningFree} Min`);
+  if (day.pauseSplit?.eveningFree) parts.push(`Abend ${day.pauseSplit.eveningFree} Min`);
+  return parts.join(" · ") || "—";
 }
 
 function toCsv(result) {
