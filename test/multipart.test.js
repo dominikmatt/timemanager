@@ -20,8 +20,29 @@ describe("multipart", () => {
       ].join("\r\n"),
     );
     const files = parseMultipart(body, "multipart/form-data; boundary=abc");
-    assert.equal(files.office.filename, "a.pdf");
-    assert.equal(files.office.buffer.toString(), "%PDF");
-    assert.equal(files.crewmeister.buffer.toString(), "PK");
+    assert.equal(files.office[0].filename, "a.pdf");
+    assert.equal(files.office[0].buffer.toString(), "%PDF");
+    assert.equal(files.crewmeister[0].buffer.toString(), "PK");
+  });
+
+  it("keeps several crewmeister parts", () => {
+    const body = Buffer.from(
+      [
+        "--abc",
+        'Content-Disposition: form-data; name="crewmeister"; filename="aug.xlsx"',
+        "",
+        "AUG",
+        "--abc",
+        'Content-Disposition: form-data; name="crewmeister"; filename="sep.xlsx"',
+        "",
+        "SEP",
+        "--abc--",
+        "",
+      ].join("\r\n"),
+    );
+    const files = parseMultipart(body, "multipart/form-data; boundary=abc");
+    assert.equal(files.crewmeister.length, 2);
+    assert.equal(files.crewmeister[0].filename, "aug.xlsx");
+    assert.equal(files.crewmeister[1].filename, "sep.xlsx");
   });
 });

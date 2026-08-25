@@ -187,3 +187,49 @@ export async function parseCrewmeister(buffer) {
     days: [...days.values()].sort((a, b) => a.iso.localeCompare(b.iso)),
   };
 }
+
+function uniqueIntervals(intervals) {
+  const seen = new Set();
+  const result = [];
+  for (const item of [...intervals].sort((a, b) => a.start - b.start || a.end - b.end)) {
+    const key = `${item.start}-${item.end}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    result.push({ start: item.start, end: item.end });
+  }
+  return result;
+}
+
+export function mergeCrewmeister(docs) {
+  const byIso = new Map();
+  const range = { from: null, to: null };
+  for (const doc of docs) {
+    for (const day of doc.days || []) {
+      const existing = byIso.get(day.iso);
+      if (!existing) {
+        byIso.set(day.iso, {
+          ...day,
+          intervals: [...(day.intervals || [])],
+        });
+        continue;
+      }
+      existing.intervals.push(...(day.intervals || []));
+      existing.pauseMinutes = Math.max(existing.pauseMinutes || 0, day.pauseMinutes || 0);
+      existing.istMinutes = Math.max(existing.istMinutes || 0, day.istMinutes || 0);
+      existing.sollMinutes = Math.max(existing.sollMinutes || 0, day.sollMinutes || 0);
+      existing.presentMinutes = Math.max(existing.presentMinutes || 0, day.presentMinutes || 0);
+      if (day.comment && !existing.comment) existing.comment = day.comment;
+      if (day.absence && !existing.absence) existing.absence = day.absence;
+    }
+  }
+  for (const day of byIso.values()) {
+    day.intervals = uniqueIntervals(day.intervals);
+    if (!range.from || day.iso < range.from) range.from = day.iso;
+    if (!range.to || day.iso > range.to) range.to = day.iso;
+  }
+  return {
+    source: "crewmeister",
+    range,
+    days: [...byIso.values()].sort((a, b) => a.iso.localeCompare(b.iso)),
+  };
+}

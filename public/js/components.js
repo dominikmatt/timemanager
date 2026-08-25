@@ -18,13 +18,13 @@ export class FileCompareForm extends HTMLElement {
             <input id="office" name="office" type="file" accept=".pdf,application/pdf" required />
           </div>
           <div class="file-field">
-            <label for="crewmeister">Crewmeister (xlsx)</label>
-            <input id="crewmeister" name="crewmeister" type="file" accept=".xlsx,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" required />
+            <label for="crewmeister">Crewmeister (xlsx, mehrere möglich)</label>
+            <input id="crewmeister" name="crewmeister" type="file" multiple accept=".xlsx,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" required />
           </div>
         </div>
         <div class="actions">
           <button type="submit">Abgleichen</button>
-          <p class="muted">Dateien bleiben auf diesem Rechner.</p>
+          <p class="muted">Dateien bleiben auf diesem Rechner. Mehrere Crewmeister-Monate mit Strg/Cmd wählen.</p>
         </div>
         <p class="error" hidden></p>
       </form>
@@ -41,7 +41,14 @@ export class FileCompareForm extends HTMLElement {
     error.hidden = true;
     button.disabled = true;
     try {
-      const body = new FormData(this.querySelector("form"));
+      const form = this.querySelector("form");
+      const office = form.office.files[0];
+      const crewFiles = [...form.crewmeister.files];
+      if (!office) throw new Error("Bitte das Büro-PDF hochladen.");
+      if (!crewFiles.length) throw new Error("Bitte mindestens eine Crewmeister-Datei wählen.");
+      const body = new FormData();
+      body.append("office", office);
+      for (const file of crewFiles) body.append("crewmeister", file);
       const response = await fetch("/api/compare", { method: "POST", body });
       const payload = await response.json();
       if (!response.ok) throw new Error(payload.error || "Vergleich fehlgeschlagen.");

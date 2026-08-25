@@ -34,17 +34,20 @@ export async function handleCompare(req, res) {
   try {
     const body = await readBody(req);
     const files = parseMultipart(body, req.headers["content-type"]);
-    const office = files.office;
-    const crew = files.crewmeister;
+    const office = files.office?.[0];
+    const crewFiles = (files.crewmeister || []).filter((file) => file?.buffer?.length);
     if (!office?.buffer?.length) {
       json(res, 400, { error: "Bitte das Büro-PDF hochladen." });
       return;
     }
-    if (!crew?.buffer?.length) {
-      json(res, 400, { error: "Bitte die Crewmeister-Excel-Datei hochladen." });
+    if (!crewFiles.length) {
+      json(res, 400, { error: "Bitte mindestens eine Crewmeister-Excel-Datei hochladen." });
       return;
     }
-    const result = await compareBuffers(office.buffer, crew.buffer);
+    const result = await compareBuffers(
+      office.buffer,
+      crewFiles.map((file) => file.buffer),
+    );
     json(res, 200, result);
   } catch (error) {
     json(res, 400, { error: error.message || "Vergleich fehlgeschlagen." });

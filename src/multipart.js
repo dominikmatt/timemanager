@@ -17,10 +17,11 @@ export function parseMultipart(buffer, contentType) {
     const name = /name="([^"]+)"/i.exec(headers)?.[1];
     if (!name) continue;
     const filename = /filename="([^"]*)"/i.exec(headers)?.[1] || "";
-    files[name] = {
+    if (!files[name]) files[name] = [];
+    files[name].push({
       filename,
       buffer: Buffer.from(body, "latin1"),
-    };
+    });
   }
   return files;
 }
