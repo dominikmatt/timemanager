@@ -7,6 +7,7 @@ import {
   subtractIntervals,
   weekdayDe,
 } from "./time-utils.js";
+import { absenceCreditMinutes, detectAbsence } from "./absence.js";
 
 function listIntervals(intervals) {
   return intervals.map(formatInterval).join(", ");
@@ -43,8 +44,7 @@ function classifyLeftover(interval, firstOffice, lastOffice) {
 }
 
 function isSick(crew) {
-  const text = `${crew?.absence || ""} ${crew?.comment || ""}`.toLowerCase();
-  return /krankheit|krank/.test(text);
+  return detectAbsence(crew)?.type === "sickness";
 }
 
 function isHomeoffice(crew) {
@@ -60,6 +60,7 @@ function generateNote(day) {
   const parts = [];
   const office = day.office;
   const crew = day.crew;
+  const absence = detectAbsence(crew);
 
   if (office?.intervals?.length) {
     parts.push(
@@ -96,9 +97,13 @@ function generateNote(day) {
     if (isHomeoffice(crew) && office.intervals.length) {
       parts.push("Crewmeister ist als Homeoffice markiert, Büro-Stempel haben Vorrang.");
     }
-    if (isSick(crew) && office.intervals.length) {
-      parts.push("Crewmeister meldet Krankheit, Büro-Stempel wurden trotzdem nicht geändert.");
+    if (absence && office.intervals.length) {
+      parts.push(`Crewmeister meldet ${absence.label}, Büro-Stempel wurden trotzdem nicht geändert.`);
     }
+  } else if (absence?.type === "vacation" || absence?.type === "compensation") {
+    parts.push(
+      `Keine Büro-Stempel. Crewmeister: ${absence.label} (${absence.days} Tag). Ist auf Soll gesetzt (${minutesToDuration(day.reconciledIstMinutes)}).`,
+    );
   } else if (isSick(crew)) {
     parts.push(
       `Keine Büro-Stempel. Crewmeister: Krankheit${crew.istMinutes ? ` ${minutesToDuration(crew.istMinutes)}` : ""}. Bürozeiten nicht geändert.`,
@@ -218,18 +223,24 @@ function reconcileOfficeDay(office, crew) {
 
 function reconcileRemoteDay(office, crew) {
   const warnings = [];
-  const sick = isSick(crew);
+  const absence = detectAbsence(crew);
   let reconciledIntervals = [];
   let reconciledIstMinutes = 0;
+  let kind = "empty";
 
-  if (sick) {
+  if (absence && (absence.type === "vacation" || absence.type === "compensation")) {
+    reconciledIstMinutes = absenceCreditMinutes(office, crew, absence.days);
+    kind = absence.type;
+  } else if (absence?.type === "sickness") {
     reconciledIstMinutes = crew?.istMinutes || 0;
+    kind = "sickness";
   } else if (crew?.intervals?.length) {
     reconciledIntervals = crew.intervals.map((interval) => ({
       ...interval,
       type: "homeoffice",
     }));
     reconciledIstMinutes = crew.istMinutes || crew.intervals.reduce((sum, i) => sum + intervalDuration(i), 0);
+    kind = "homeoffice";
   }
 
   if (office?.sollMinutes && !crew) {
@@ -244,7 +255,9 @@ function reconcileRemoteDay(office, crew) {
     reconciledIntervals,
     reconciledIstMinutes,
     addedWork: [],
-    kind: sick ? "sickness" : crew?.intervals?.length ? "homeoffice" : "empty",
+    kind,
+    absenceDays: absence?.days ?? null,
+    absenceLabel: absence?.label ?? null,
   };
 }
 
@@ -263,6 +276,9 @@ export function reconcileDay(office, crew) {
     reconciledIntervals: [],
     reconciledIstMinutes: 0,
     officeSollMinutes: office?.sollMinutes ?? crew?.sollMinutes ?? null,
+    kind: "empty",
+    absenceDays: null,
+    absenceLabel: null,
     note: "",
   };
 

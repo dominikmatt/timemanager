@@ -239,7 +239,9 @@ td.note {
 }
 
 .chip.homeoffice,
-.chip.sickness {
+.chip.sickness,
+.chip.vacation,
+.chip.compensation {
   background: var(--home-bg);
   color: var(--home);
 }

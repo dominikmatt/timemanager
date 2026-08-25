@@ -4,6 +4,8 @@ const TYPE_LABEL = {
   after_office: "Danach",
   homeoffice: "Homeoffice",
   sickness: "Krankheit",
+  vacation: "Urlaub",
+  compensation: "Freizeitausgleich",
   free: "Freizeit",
   lunch: "Mittag",
 };
@@ -82,9 +84,20 @@ function chips(intervals, empty = "—") {
   return `<div class="chips">${intervals
     .map((interval) => {
       const label = TYPE_LABEL[interval.type] || interval.type;
+      if (interval.start == null || interval.end == null) {
+        return `<span class="chip ${interval.type}">${label}</span>`;
+      }
       return `<span class="chip ${interval.type}">${clock(interval.start)}–${clock(interval.end)} ${label}</span>`;
     })
     .join("")}</div>`;
+}
+
+function absenceChip(day) {
+  if (!["vacation", "compensation", "sickness"].includes(day.kind)) return "";
+  if (day.reconciledIntervals?.length) return "";
+  const label = day.absenceLabel || TYPE_LABEL[day.kind] || day.kind;
+  const days = day.absenceDays != null ? ` ${day.absenceDays} Tag` : "";
+  return `<div class="chips"><span class="chip ${day.kind}">${label}${days}</span></div>`;
 }
 
 function crewLabel(day) {
@@ -281,7 +294,7 @@ export class TimeResultTable extends HTMLElement {
             day.office?.intervals?.length ? '<div class="locked">unverändert</div>' : ""
           }<div>Ist ${duration(day.office?.istMinutes)}</div></td>
           <td>${crewLabel(day)}<div>Ist ${duration(day.crew?.istMinutes)}</div></td>
-          <td>${chips(day.reconciledIntervals)}<div><strong>${duration(day.reconciledIstMinutes)}</strong> / Soll ${duration(day.officeSollMinutes)}</div></td>
+          <td>${absenceChip(day) || chips(day.reconciledIntervals)}<div><strong>${duration(day.reconciledIstMinutes)}</strong> / Soll ${duration(day.officeSollMinutes)}</div></td>
           <td>${pause}</td>
           <td class="note${warnClass}">${day.note}</td>
         </tr>`;

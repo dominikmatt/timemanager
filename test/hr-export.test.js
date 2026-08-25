@@ -75,4 +75,59 @@ describe("hr export", () => {
     assert.match(row.extraText, /Krankheit/);
     assert.match(row.instruction, /Krankheit nachbuchen/);
   });
+
+  it("asks HR to book Urlaub and Freizeitausgleich as full days", () => {
+    const holiday = buildHrRow(
+      reconcileDay(
+        {
+          iso: "2026-08-21",
+          weekday: "Fr",
+          punches: [],
+          intervals: [],
+          istMinutes: null,
+          sollMinutes: t("5:22"),
+          dayModel: "56",
+        },
+        {
+          iso: "2026-08-21",
+          intervals: [],
+          pauseMinutes: 0,
+          istMinutes: 0,
+          sollMinutes: 462,
+          comment: "",
+          absence: "Urlaub (1)",
+        },
+      ),
+    );
+    assert.equal(holiday.ist, "5:22");
+    assert.equal(holiday.soll, "5:22");
+    assert.match(holiday.extraText, /Urlaub 1 Tag/);
+    assert.match(holiday.instruction, /Urlaub nachbuchen/);
+
+    const compensation = buildHrRow(
+      reconcileDay(
+        {
+          iso: "2026-08-18",
+          weekday: "Di",
+          punches: [],
+          intervals: [],
+          istMinutes: null,
+          sollMinutes: t("8:17"),
+          dayModel: "55",
+        },
+        {
+          iso: "2026-08-18",
+          intervals: [],
+          pauseMinutes: 0,
+          istMinutes: 0,
+          sollMinutes: 462,
+          comment: "",
+          absence: "Freizeitausgleich (1)",
+        },
+      ),
+    );
+    assert.equal(compensation.ist, "8:17");
+    assert.equal(compensation.soll, "8:17");
+    assert.match(compensation.extraText, /Freizeitausgleich 1 Tag/);
+  });
 });

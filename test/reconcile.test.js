@@ -90,6 +90,59 @@ describe("reconcileDay", () => {
     assert.match(day.note, /KRK/);
   });
 
+  it("credits a full Urlaub day so Ist equals office Soll", () => {
+    const office = {
+      iso: "2026-08-21",
+      weekday: "Fr",
+      punches: [],
+      intervals: [],
+      istMinutes: null,
+      sollMinutes: t("5:22"),
+      dayModel: "56",
+    };
+    const crew = {
+      iso: "2026-08-21",
+      intervals: [],
+      pauseMinutes: 0,
+      istMinutes: 0,
+      sollMinutes: Math.round(7.7 * 60),
+      comment: "",
+      absence: "Urlaub (1)",
+    };
+    const day = reconcileDay(office, crew);
+    assert.equal(day.kind, "vacation");
+    assert.equal(day.reconciledIstMinutes, t("5:22"));
+    assert.equal(day.reconciledIstMinutes, day.officeSollMinutes);
+    assert.match(day.note, /Urlaub/);
+    assert.match(day.note, /Ist auf Soll/);
+  });
+
+  it("credits Freizeitausgleich as one compensatory day matching Soll", () => {
+    const office = {
+      iso: "2026-08-18",
+      weekday: "Di",
+      punches: [],
+      intervals: [],
+      istMinutes: null,
+      sollMinutes: t("8:17"),
+      dayModel: "55",
+    };
+    const crew = {
+      iso: "2026-08-18",
+      intervals: [],
+      pauseMinutes: 0,
+      istMinutes: 0,
+      sollMinutes: Math.round(7.7 * 60),
+      comment: "",
+      absence: "Freizeitausgleich (1)",
+    };
+    const day = reconcileDay(office, crew);
+    assert.equal(day.kind, "compensation");
+    assert.equal(day.reconciledIstMinutes, t("8:17"));
+    assert.equal(day.reconciledIstMinutes, day.officeSollMinutes);
+    assert.match(day.note, /Freizeitausgleich/);
+  });
+
   it("takes homeoffice from Crewmeister when office has no punches", () => {
     const office = {
       iso: "2026-08-12",

@@ -1,10 +1,13 @@
 import { formatInterval, minutesToClock, minutesToDuration } from "./time-utils.js";
+import { detectAbsence } from "./absence.js";
 
 const EXTRA_LABEL = {
   on_the_way: "Arbeitsweg",
   after_office: "Arbeitsweg nach Büro",
   homeoffice: "Homeoffice",
   sickness: "Krankheit",
+  vacation: "Urlaub",
+  compensation: "Freizeitausgleich",
 };
 
 function punchClocks(punches = []) {
@@ -29,16 +32,17 @@ function extrasForDay(day) {
       });
     }
   }
-  if (!extras.length && /krankheit|krank/i.test(`${day.crew?.absence || ""} ${day.crew?.comment || ""}`)) {
-    extras.push({
-      type: "sickness",
-      label: "Krankheit",
-      from: "",
-      to: "",
-      text: day.crew?.istMinutes
-        ? `Krankheit ${minutesToDuration(day.crew.istMinutes)}`
-        : "Krankheit",
-    });
+  if (!extras.length) {
+    const absence = detectAbsence(day.crew);
+    if (absence) {
+      extras.push({
+        type: absence.type,
+        label: absence.label,
+        from: "",
+        to: "",
+        text: `${absence.label} ${absence.days} Tag`,
+      });
+    }
   }
   return extras;
 }
@@ -55,6 +59,12 @@ function instruction(day, extras, hasOfficePunches) {
   if (extras.some((item) => item.type === "sickness")) {
     return `Krankheit nachbuchen${day.crew?.istMinutes ? ` (${minutesToDuration(day.crew.istMinutes)})` : ""}.`;
   }
+  if (extras.some((item) => item.type === "vacation")) {
+    return `Urlaub nachbuchen (${extras.find((item) => item.type === "vacation").text}).`;
+  }
+  if (extras.some((item) => item.type === "compensation")) {
+    return `Freizeitausgleich nachbuchen (${extras.find((item) => item.type === "compensation").text}).`;
+  }
   return `Nachbuchen: ${extraText}.`;
 }
 
@@ -69,7 +79,9 @@ export function buildHrRow(day) {
     date: day.date,
     weekday: day.weekday,
     ...clocks,
-    ist: hasOfficePunches ? minutesToDuration(day.office?.istMinutes) : "",
+    ist: hasOfficePunches
+      ? minutesToDuration(day.office?.istMinutes)
+      : minutesToDuration(day.reconciledIstMinutes),
     soll: minutesToDuration(day.officeSollMinutes) || "",
     extras,
     extraText: extras.map((item) => item.text).join("; "),
