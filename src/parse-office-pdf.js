@@ -1,9 +1,12 @@
 import { getDocument } from "pdfjs-dist/legacy/build/pdf.mjs";
+import * as pdfjsWorker from "pdfjs-dist/legacy/build/pdf.worker.mjs";
 import {
   germanDateToIso,
   parseTimeToMinutes,
   punchesToIntervals,
 } from "./time-utils.js";
+
+globalThis.pdfjsWorker = pdfjsWorker;
 
 const Y_CLUSTER = 8;
 
