@@ -65,7 +65,7 @@ function instruction(day, extras, hasOfficePunches) {
     return `Büro-Stempel nicht ändern. Zusätzlich buchen: ${extraText}.`;
   }
   if (extras.some((item) => item.type === "sickness")) {
-    return `Krankheit nachbuchen${day.crew?.istMinutes ? ` (${minutesToDuration(day.crew.istMinutes)})` : ""}.`;
+    return `Krankheit nachbuchen (${extras.find((item) => item.type === "sickness").text}).`;
   }
   if (extras.some((item) => item.type === "vacation")) {
     return `Urlaub nachbuchen (${extras.find((item) => item.type === "vacation").text}).`;

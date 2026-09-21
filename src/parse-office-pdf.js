@@ -2,6 +2,7 @@ import { getDocument } from "pdfjs-dist/legacy/build/pdf.mjs";
 import * as pdfjsWorker from "pdfjs-dist/legacy/build/pdf.worker.mjs";
 import {
   germanDateToIso,
+  intervalDuration,
   parseTimeToMinutes,
   punchesToIntervals,
 } from "./time-utils.js";
@@ -101,7 +102,51 @@ function parseDayRow(rowItems) {
     pufferMinutes: puffer,
     dayModel: model || null,
     source: "office",
+    mergedContinuation: false,
   };
+}
+
+function collapseConsecutivePunches(punches) {
+  const out = [];
+  for (const time of punches || []) {
+    if (time == null) continue;
+    if (out.length && out[out.length - 1] === time) continue;
+    out.push(time);
+  }
+  return out;
+}
+
+export function mergeOfficeDays(days) {
+  const byIso = new Map();
+  for (const day of days || []) {
+    const existing = byIso.get(day.iso);
+    if (!existing) {
+      byIso.set(day.iso, {
+        ...day,
+        punches: [...(day.punches || [])],
+        mergedContinuation: false,
+      });
+      continue;
+    }
+    existing.punches.push(...(day.punches || []));
+    existing.mergedContinuation = true;
+    if (!existing.weekday && day.weekday) existing.weekday = day.weekday;
+    if (!existing.dayModel && day.dayModel) existing.dayModel = day.dayModel;
+    if (existing.istMinutes == null && day.istMinutes != null) existing.istMinutes = day.istMinutes;
+    if (existing.sollMinutes == null && day.sollMinutes != null) existing.sollMinutes = day.sollMinutes;
+    if (existing.pufferMinutes == null && day.pufferMinutes != null) existing.pufferMinutes = day.pufferMinutes;
+  }
+
+  return [...byIso.values()]
+    .sort((a, b) => a.iso.localeCompare(b.iso))
+    .map((day) => {
+      const punches = collapseConsecutivePunches(day.punches).sort((a, b) => a - b);
+      const intervals = punchesToIntervals(punches);
+      const istMinutes = day.mergedContinuation
+        ? intervals.reduce((sum, interval) => sum + intervalDuration(interval), 0)
+        : day.istMinutes;
+      return { ...day, punches, intervals, istMinutes };
+    });
 }
 
 export async function parseOfficePdf(buffer) {
@@ -117,6 +162,5 @@ export async function parseOfficePdf(buffer) {
     const day = parseDayRow(row.items);
     if (day) days.push(day);
   }
-  days.sort((a, b) => a.iso.localeCompare(b.iso));
-  return { title, days };
+  return { title, days: mergeOfficeDays(days) };
 }

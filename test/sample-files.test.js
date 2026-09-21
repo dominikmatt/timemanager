@@ -71,6 +71,8 @@ describe("sample files", () => {
     const sick = byIso["2026-08-03"];
     assert.match(sick.crew.absence, /Krankheit/);
     assert.equal(sick.office.intervals.length, 0);
+    assert.equal(sick.reconciledIstMinutes, parseTimeToMinutes("8:17"));
+    assert.equal(sick.diffMinutes, 0);
     assert.match(sick.note, /Krankheit/);
 
     const home = byIso["2026-08-12"];

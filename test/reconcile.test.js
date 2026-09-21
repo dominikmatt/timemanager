@@ -65,7 +65,7 @@ describe("reconcileDay", () => {
     assert.match(day.note, /16:33–17:00/);
   });
 
-  it("uses Crewmeister sickness when office has no punches", () => {
+  it("credits Krankheit as weekday Soll instead of Crewmeister Ist", () => {
     const office = {
       iso: "2026-08-03",
       weekday: "Mo",
@@ -85,12 +85,35 @@ describe("reconcileDay", () => {
     };
 
     const day = reconcileDay(office, crew);
+    assert.equal(day.kind, "sickness");
     assert.equal(day.reconciledIntervals.length, 0);
-    assert.equal(day.reconciledIstMinutes, Math.round(7.7 * 60));
-    assert.equal(day.office.intervals.length, 0);
+    assert.equal(day.reconciledIstMinutes, t("8:17"));
+    assert.equal(day.reconciledIstMinutes, day.officeSollMinutes);
+    assert.equal(day.diffMinutes, 0);
     assert.match(day.note, /Krankheit/);
-    assert.match(day.note, /nicht geändert/);
-    assert.match(day.note, /KRK/);
+    assert.match(day.note, /Ist auf Soll/);
+
+    const friday = reconcileDay(
+      {
+        iso: "2026-08-07",
+        weekday: "Fr",
+        punches: [],
+        intervals: [],
+        istMinutes: null,
+        sollMinutes: t("5:22"),
+        dayModel: "56",
+      },
+      {
+        iso: "2026-08-07",
+        intervals: [],
+        pauseMinutes: 0,
+        istMinutes: Math.round(7.7 * 60),
+        comment: "",
+        absence: "Krankheit (1)",
+      },
+    );
+    assert.equal(friday.reconciledIstMinutes, t("5:22"));
+    assert.equal(friday.diffMinutes, 0);
   });
 
   it("uses weekday Soll even when files show a different target", () => {
@@ -181,6 +204,30 @@ describe("reconcileDay", () => {
     assert.equal(day.reconciledIstMinutes, t("8:17"));
     assert.equal(day.reconciledIstMinutes, day.officeSollMinutes);
     assert.match(day.note, /Freizeitausgleich/);
+  });
+
+  it("treats Zeitausgleich like Freizeitausgleich with weekday Soll", () => {
+    const day = reconcileDay(
+      {
+        iso: "2026-08-18",
+        weekday: "Di",
+        punches: [],
+        intervals: [],
+        istMinutes: null,
+        sollMinutes: t("8:17"),
+        dayModel: "55",
+      },
+      {
+        iso: "2026-08-18",
+        intervals: [],
+        pauseMinutes: 0,
+        istMinutes: 0,
+        comment: "",
+        absence: "Zeitausgleich (1)",
+      },
+    );
+    assert.equal(day.kind, "compensation");
+    assert.equal(day.reconciledIstMinutes, t("8:17"));
   });
 
   it("takes homeoffice from Crewmeister when office has no punches", () => {

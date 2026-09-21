@@ -57,10 +57,6 @@ function classifyLeftover(interval, firstOffice, lastOffice) {
   return "extra";
 }
 
-function isSick(crew) {
-  return detectAbsence(crew)?.type === "sickness";
-}
-
 function isHomeoffice(crew) {
   return /homeoffice|home office|home-office/i.test(crew?.comment || "");
 }
@@ -90,6 +86,9 @@ function generateNote(day) {
     parts.push(
       `Bürozeiten unverändert gelassen: ${listIntervals(office.intervals)} (Ist ${minutesToDuration(office.istMinutes)}).`,
     );
+    if (office.mergedContinuation) {
+      parts.push("Zusätzliche Stempelzeile zusammengefasst; letztes Kommen als Gehen gelesen.");
+    }
     if (day.lunchIntervals.length) {
       parts.push(
         `Mittagspause ist die Zeit zwischen Gehen und Kommen im Büro: ${day.lunchIntervals
@@ -124,19 +123,14 @@ function generateNote(day) {
     if (absence && office.intervals.length) {
       parts.push(`Crewmeister meldet ${absence.label}, Büro-Stempel wurden trotzdem nicht geändert.`);
     }
-  } else if (absence?.type === "vacation" || absence?.type === "compensation") {
+  } else if (
+    absence?.type === "vacation" ||
+    absence?.type === "compensation" ||
+    absence?.type === "sickness"
+  ) {
     parts.push(
       `Keine Büro-Stempel. Crewmeister: ${absence.label} (${absence.days} Tag). Ist auf Soll gesetzt (${minutesToDuration(day.reconciledIstMinutes)}).`,
     );
-  } else if (isSick(crew)) {
-    parts.push(
-      `Keine Büro-Stempel. Crewmeister: Krankheit${crew.istMinutes ? ` ${minutesToDuration(crew.istMinutes)}` : ""}. Bürozeiten nicht geändert.`,
-    );
-    if (office?.sollMinutes) {
-      parts.push(
-        `Büro zeigt fehlende Sollzeit (${minutesToDuration(-office.sollMinutes)}), keine KRK-Buchung im Bürosystem.`,
-      );
-    }
   } else if (crew?.intervals?.length) {
     const label = isHomeoffice(crew) ? "Homeoffice" : "Crewmeister-Zeit";
     parts.push(
@@ -276,12 +270,9 @@ function reconcileRemoteDay(office, crew) {
   let lunchIntervals = [];
   let pauseSplit = null;
 
-  if (absence && (absence.type === "vacation" || absence.type === "compensation")) {
+  if (absence && (absence.type === "vacation" || absence.type === "compensation" || absence.type === "sickness")) {
     reconciledIstMinutes = absenceCreditMinutes(office, crew, absence.days);
     kind = absence.type;
-  } else if (absence?.type === "sickness") {
-    reconciledIstMinutes = crew?.istMinutes || 0;
-    kind = "sickness";
   } else if (crew?.intervals?.length) {
     reconciledIntervals = crew.intervals.map((interval) => ({
       ...interval,

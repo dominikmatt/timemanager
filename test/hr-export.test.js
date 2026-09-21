@@ -83,7 +83,9 @@ describe("hr export", () => {
     assert.equal(row.g1, "");
     assert.match(row.extraText, /Krankheit/);
     assert.equal(row.extraKind, "Krankheit");
-    assert.equal(row.extraDuration, "7:42");
+    assert.equal(row.ist, "8:17");
+    assert.equal(row.extraDuration, "8:17");
+    assert.equal(row.diff, "0:00");
     assert.match(row.instruction, /Krankheit nachbuchen/);
   });
 

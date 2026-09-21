@@ -5,7 +5,7 @@ export function detectAbsence(crew) {
   if (!text) return null;
   const kinds = [
     { type: "vacation", re: /urlaub/i, label: "Urlaub" },
-    { type: "compensation", re: /freizeitausgleich/i, label: "Freizeitausgleich" },
+    { type: "compensation", re: /freizeitausgleich|zeitausgleich/i, label: "Freizeitausgleich" },
     { type: "sickness", re: /krankheit|\bkrank\b/i, label: "Krankheit" },
   ];
   for (const kind of kinds) {
