@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
+import ExcelJS from "exceljs";
 import { buildHrRow, hrToCsv } from "../src/hr-export.js";
+import { hrToXlsxBuffer } from "../src/hr-xlsx.js";
 import { reconcileDay } from "../src/reconcile.js";
 import { parseTimeToMinutes } from "../src/time-utils.js";
 
@@ -8,8 +10,12 @@ function t(value) {
   return parseTimeToMinutes(value);
 }
 
+function pairText(row) {
+  return row.pairs.map((pair) => `${pair.kommen}–${pair.gehen}${pair.extra ? " +" : ""}`);
+}
+
 describe("hr export", () => {
-  it("puts PDF punches in K/G columns and only extras in the booking column", () => {
+  it("keeps office punches and adds extra time as further Kommen/Gehen pairs", () => {
     const day = reconcileDay(
       {
         iso: "2026-08-04",
@@ -33,29 +39,62 @@ describe("hr export", () => {
       },
     );
     const row = buildHrRow(day);
-    assert.equal(row.k1, "07:44");
-    assert.equal(row.g1, "11:47");
-    assert.equal(row.k2, "12:15");
-    assert.equal(row.g2, "16:01");
+    assert.deepEqual(pairText(row), ["06:45–07:29 +", "07:44–11:47", "12:15–16:01", "16:33–17:00 +"]);
+    assert.equal(row.pairs[0].label, "Auswärts");
+    assert.equal(row.pairs[3].label, "Auswärts nach Büro");
     assert.equal(row.ist, "9:00");
     assert.equal(row.soll, "8:17");
-    assert.equal(row.diff, "+0:43");
-    assert.equal(row.diffMinutes, 43);
-    assert.match(row.extraText, /06:45–07:29 Auswärts\n16:33–17:00/);
-    assert.doesNotMatch(row.extraText, /07:44/);
-    assert.equal(row.extraKind, "Auswärts, Auswärts nach Büro");
-    assert.equal(row.extraDuration, "1:11");
-    assert.equal(row.extraMinutes, 44 + 27);
-    assert.equal(row.pauseDuration, "1:15");
-    assert.equal(row.pauseMinutes, 75);
-    assert.match(row.instruction, /nicht ändern/);
+    assert.equal(row.puff, "+0:43");
+    assert.equal(row.puffMinutes, 43);
     assert.equal(row.needsBooking, true);
 
     const csv = hrToCsv({ legend: "Legende", rows: [row] });
-    assert.match(csv, /07:44;11:47;12:15;16:01/);
-    assert.match(csv, /Istzeit;Sollzeit;Differenz;Art;Zusatzzeit;Pausezeit;Zusätzlich buchen/);
-    assert.match(csv, /1:11/);
-    assert.match(csv, /1:15/);
+    assert.match(csv, /Kommen;Gehen;Art;IST;SOLL;Puff/);
+    assert.match(csv, /06:45;07:29;Auswärts;9:00;8:17;\+0:43/);
+    assert.match(csv, /07:44;11:47;Büro;9:00;8:17;\+0:43/);
+    assert.match(csv, /16:33;17:00;Auswärts nach Büro/);
+  });
+
+  it("lists 24.08 extra time as Kommen/Gehen around the office stamps", () => {
+    const row = buildHrRow(
+      reconcileDay(
+        {
+          iso: "2026-08-24",
+          weekday: "Mo",
+          punches: [t("07:44"), t("11:47"), t("12:13"), t("16:29")],
+          intervals: [
+            { start: t("07:44"), end: t("11:47"), type: "office" },
+            { start: t("12:13"), end: t("16:29"), type: "office" },
+          ],
+          istMinutes: t("8:02"),
+          sollMinutes: t("8:17"),
+          dayModel: "55",
+        },
+        {
+          iso: "2026-08-24",
+          intervals: [
+            { start: t("06:45"), end: t("07:30") },
+            { start: t("07:45"), end: t("11:45") },
+            { start: t("12:15"), end: t("16:30") },
+            { start: t("17:00"), end: t("17:30") },
+          ],
+          pauseMinutes: 0,
+          istMinutes: t("9:30"),
+          comment: "",
+          absence: "",
+        },
+      ),
+    );
+    assert.deepEqual(pairText(row), [
+      "06:45–07:30 +",
+      "07:44–11:47",
+      "12:13–16:29",
+      "16:29–16:30 +",
+      "17:00–17:30 +",
+    ]);
+    assert.equal(row.ist, "9:35");
+    assert.equal(row.soll, "8:17");
+    assert.equal(row.puff, "+1:18");
   });
 
   it("asks HR to book sickness when the PDF has no punches", () => {
@@ -79,14 +118,12 @@ describe("hr export", () => {
       },
     );
     const row = buildHrRow(day);
-    assert.equal(row.k1, "");
-    assert.equal(row.g1, "");
-    assert.match(row.extraText, /Krankheit/);
-    assert.equal(row.extraKind, "Krankheit");
+    assert.deepEqual(row.pairs, []);
+    assert.equal(row.absence, "Krankheit");
     assert.equal(row.ist, "8:17");
-    assert.equal(row.extraDuration, "8:17");
-    assert.equal(row.diff, "0:00");
-    assert.match(row.instruction, /Krankheit nachbuchen/);
+    assert.equal(row.soll, "8:17");
+    assert.equal(row.puff, "0:00");
+    assert.equal(row.needsBooking, true);
   });
 
   it("asks HR to book Urlaub and Freizeitausgleich as full days", () => {
@@ -114,11 +151,9 @@ describe("hr export", () => {
     );
     assert.equal(holiday.ist, "5:22");
     assert.equal(holiday.soll, "5:22");
-    assert.equal(holiday.diff, "0:00");
-    assert.equal(holiday.extraKind, "Urlaub");
-    assert.equal(holiday.extraDuration, "5:22");
-    assert.match(holiday.extraText, /Urlaub 1 Tag/);
-    assert.match(holiday.instruction, /Urlaub nachbuchen/);
+    assert.equal(holiday.puff, "0:00");
+    assert.equal(holiday.absence, "Urlaub");
+    assert.deepEqual(holiday.pairs, []);
 
     const compensation = buildHrRow(
       reconcileDay(
@@ -144,12 +179,11 @@ describe("hr export", () => {
     );
     assert.equal(compensation.ist, "8:17");
     assert.equal(compensation.soll, "8:17");
-    assert.equal(compensation.extraKind, "Freizeitausgleich");
-    assert.equal(compensation.extraDuration, "8:17");
-    assert.match(compensation.extraText, /Freizeitausgleich 1 Tag/);
+    assert.equal(compensation.absence, "Freizeitausgleich");
+    assert.equal(compensation.puff, "0:00");
   });
 
-  it("books homeoffice as two blocks with the whole Crewmeister pause as Mittag", () => {
+  it("books homeoffice as two Kommen/Gehen blocks with the pause as the gap", () => {
     const row = buildHrRow(
       reconcileDay(
         {
@@ -171,14 +205,62 @@ describe("hr export", () => {
         },
       ),
     );
-    assert.equal(row.k1, "");
+    assert.deepEqual(pairText(row), ["07:15–12:00 +", "13:15–17:30 +"]);
+    assert.equal(row.pairs[0].label, "Homeoffice");
     assert.equal(row.ist, "9:00");
-    assert.equal(row.diff, "+0:43");
-    assert.equal(row.extraKind, "Homeoffice");
-    assert.equal(row.extraDuration, "9:00");
-    assert.equal(row.pauseDuration, "1:15");
-    assert.match(row.extraText, /07:15–12:00 Homeoffice\n13:15–17:30 Homeoffice/);
-    assert.doesNotMatch(row.extraText, /Mittag/);
-    assert.match(row.instruction, /Nachbuchen: 07:15–12:00 Homeoffice; 13:15–17:30 Homeoffice/);
+    assert.equal(row.puff, "+0:43");
+    assert.equal(row.absence, "");
+  });
+
+  it("writes the booking sheet with one Kommen/Gehen row per pair", async () => {
+    const row = buildHrRow(
+      reconcileDay(
+        {
+          iso: "2026-08-24",
+          weekday: "Mo",
+          punches: [t("07:44"), t("11:47"), t("12:13"), t("16:29")],
+          intervals: [
+            { start: t("07:44"), end: t("11:47"), type: "office" },
+            { start: t("12:13"), end: t("16:29"), type: "office" },
+          ],
+          istMinutes: t("8:02"),
+          sollMinutes: t("8:17"),
+          dayModel: "55",
+        },
+        {
+          iso: "2026-08-24",
+          intervals: [
+            { start: t("06:45"), end: t("07:30") },
+            { start: t("07:45"), end: t("11:45") },
+            { start: t("12:15"), end: t("16:30") },
+            { start: t("17:00"), end: t("17:30") },
+          ],
+          pauseMinutes: 0,
+          istMinutes: t("9:30"),
+          comment: "",
+          absence: "",
+        },
+      ),
+    );
+    const workbook = new ExcelJS.Workbook();
+    await workbook.xlsx.load(await hrToXlsxBuffer({ title: "Buchungen", legend: "Legende", rows: [row] }));
+    const sheet = workbook.getWorksheet("Buchungen");
+    assert.deepEqual(
+      [1, 2, 3, 4, 5, 6, 7, 8, 9].map((col) => sheet.getRow(3).getCell(col).value),
+      ["Datum", "WT", "Abwesenheit", "Kommen", "Gehen", "Art", "IST", "SOLL", "Puff"],
+    );
+    assert.equal(sheet.getRow(4).getCell(4).value, "06:45");
+    assert.equal(sheet.getRow(4).getCell(5).value, "07:30");
+    assert.equal(sheet.getRow(4).getCell(6).value, "Auswärts");
+    assert.equal(sheet.getRow(4).getCell(7).value, "9:35");
+    assert.equal(sheet.getRow(4).getCell(8).value, "8:17");
+    assert.equal(sheet.getRow(4).getCell(9).value, "+1:18");
+    assert.equal(sheet.getRow(5).getCell(4).value, "07:44");
+    assert.equal(sheet.getRow(5).getCell(5).value, "11:47");
+    assert.equal(sheet.getRow(5).getCell(6).value, "Büro");
+    assert.equal(sheet.getRow(8).getCell(4).value, "17:00");
+    assert.equal(sheet.getRow(8).getCell(5).value, "17:30");
+    assert.equal(sheet.getRow(4).getCell(4).fill.fgColor.argb, "FFD6EAF8");
+    assert.equal(sheet.getRow(5).getCell(4).fill?.fgColor?.argb, undefined);
   });
 });

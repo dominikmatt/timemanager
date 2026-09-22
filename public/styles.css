@@ -283,20 +283,42 @@ td.note {
   font-weight: 600;
 }
 
-.hr-table .kg {
+.hr-table .kg,
+.hr-table .num {
   font-variant-numeric: tabular-nums;
   font-weight: 600;
-  color: var(--office);
+  text-align: center;
+  white-space: nowrap;
 }
 
-.hr-table tr.needs td:nth-child(9),
-.hr-table tr.needs td:nth-child(10),
-.hr-table tr.needs td:nth-child(11) {
-  background: var(--way-bg);
+.hr-table .day,
+.hr-table .abs,
+.hr-table .num {
+  vertical-align: middle;
 }
 
-.hr-table .extra-time {
-  color: var(--way);
+.hr-table tr.band td {
+  background: #f7f4ee;
+}
+
+.hr-table tr.extra td.punch,
+.hr-table tr.extra td.art {
+  background: #d6eaf8;
+  color: #1a365d;
+}
+
+.hr-table tr.absence td.abs {
+  background: var(--free-bg);
+  color: var(--free);
+  font-weight: 600;
+}
+
+.hr-table td.art {
+  color: var(--muted);
+}
+
+.hr-table tr.extra td.art {
+  font-weight: 600;
 }
 
 td.diff,

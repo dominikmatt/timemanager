@@ -45,10 +45,10 @@ describe("sample files", () => {
     const officeDay = byIso["2026-08-04"];
     assert.ok(officeDay, "04.08 missing");
     const hrRow = result.hr.rows.find((row) => row.iso === "2026-08-04");
-    assert.equal(hrRow.k1, "07:44");
-    assert.equal(hrRow.g2, "16:01");
-    assert.doesNotMatch(hrRow.extraText, /07:44/);
-    assert.match(hrRow.instruction, /nicht ändern/);
+    assert.deepEqual(
+      hrRow.pairs.map((pair) => `${pair.kommen}–${pair.gehen}${pair.extra ? " +" : ""}`),
+      ["06:45–07:29 +", "07:44–11:47", "12:15–16:01", "16:33–17:00 +"],
+    );
     assert.deepEqual(
       officeDay.office.punches,
       ["07:44", "11:47", "12:15", "16:01"].map(parseTimeToMinutes),
@@ -66,7 +66,7 @@ describe("sample files", () => {
     assert.equal(officeDay.reconciledIstMinutes, parseTimeToMinutes("9:00"));
     assert.equal(officeDay.diffMinutes, parseTimeToMinutes("0:43"));
     assert.equal(hrRow.ist, "9:00");
-    assert.equal(hrRow.diff, "+0:43");
+    assert.equal(hrRow.puff, "+0:43");
 
     const sick = byIso["2026-08-03"];
     assert.match(sick.crew.absence, /Krankheit/);

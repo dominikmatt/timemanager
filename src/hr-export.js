@@ -1,5 +1,4 @@
 import {
-  formatInterval,
   intervalDuration,
   minutesToClock,
   minutesToDuration,
@@ -11,97 +10,49 @@ const EXTRA_LABEL = {
   on_the_way: "Auswärts",
   after_office: "Auswärts nach Büro",
   homeoffice: "Homeoffice",
-  sickness: "Krankheit",
-  vacation: "Urlaub",
-  compensation: "Freizeitausgleich",
 };
 
-function punchClocks(punches = []) {
-  return {
-    k1: punches[0] != null ? minutesToClock(punches[0]) : "",
-    g1: punches[1] != null ? minutesToClock(punches[1]) : "",
-    k2: punches[2] != null ? minutesToClock(punches[2]) : "",
-    g2: punches[3] != null ? minutesToClock(punches[3]) : "",
-  };
-}
+const WORK_TYPES = new Set(["office", "on_the_way", "after_office", "homeoffice"]);
 
-function extrasForDay(day) {
-  const extras = [];
-  for (const interval of day.reconciledIntervals || []) {
-    if (interval.type === "on_the_way" || interval.type === "after_office" || interval.type === "homeoffice") {
-      extras.push({
-        type: interval.type,
-        label: EXTRA_LABEL[interval.type],
-        from: minutesToClock(interval.start),
-        to: minutesToClock(interval.end),
-        minutes: intervalDuration(interval),
-        text: `${formatInterval(interval)} ${EXTRA_LABEL[interval.type]}`,
-      });
-    }
-  }
-  if (!extras.length) {
-    const absence = detectAbsence(day.crew);
-    if (absence) {
-      extras.push({
-        type: absence.type,
-        label: absence.label,
-        from: "",
-        to: "",
-        minutes: day.reconciledIstMinutes || 0,
-        text: `${absence.label} ${absence.days} Tag`,
-      });
-    }
-  }
-  return extras;
-}
-
-function instruction(day, extras, hasOfficePunches) {
-  if (!extras.length) {
-    if (hasOfficePunches) return "Keine Nachbuchung. Vorhandene Büro-Stempel nicht ändern.";
-    return "Keine Buchung.";
-  }
-  const extraText = extras.map((item) => item.text).join("; ");
-  if (hasOfficePunches) {
-    return `Büro-Stempel nicht ändern. Zusätzlich buchen: ${extraText}.`;
-  }
-  if (extras.some((item) => item.type === "sickness")) {
-    return `Krankheit nachbuchen (${extras.find((item) => item.type === "sickness").text}).`;
-  }
-  if (extras.some((item) => item.type === "vacation")) {
-    return `Urlaub nachbuchen (${extras.find((item) => item.type === "vacation").text}).`;
-  }
-  if (extras.some((item) => item.type === "compensation")) {
-    return `Freizeitausgleich nachbuchen (${extras.find((item) => item.type === "compensation").text}).`;
-  }
-  return `Nachbuchen: ${extraText}.`;
+function pairsForDay(day) {
+  return (day.reconciledIntervals || [])
+    .filter((interval) => WORK_TYPES.has(interval.type))
+    .slice()
+    .sort((a, b) => a.start - b.start || a.end - b.end)
+    .map((interval) => ({
+      kommen: minutesToClock(interval.start),
+      gehen: minutesToClock(interval.end),
+      type: interval.type,
+      label: interval.type === "office" ? "Büro" : EXTRA_LABEL[interval.type] || interval.type,
+      extra: interval.type !== "office",
+      minutes: intervalDuration(interval),
+    }));
 }
 
 export function buildHrRow(day) {
-  const punches = day.office?.punches || [];
-  const clocks = punchClocks(punches);
-  const extras = extrasForDay(day);
-  const hasOfficePunches = punches.length > 0;
-  const needsBooking = extras.length > 0;
-  const extraMinutes = extras.reduce((sum, extra) => sum + (extra.minutes || 0), 0);
-  const extraKind = [...new Set(extras.map((extra) => extra.label))].join(", ");
-  const diffMinutes = (day.reconciledIstMinutes || 0) - (day.officeSollMinutes || 0);
+  const pairs = pairsForDay(day);
+  const absence = pairs.length ? null : detectAbsence(day.crew);
+  const istMinutes = pairs.length
+    ? pairs.reduce((sum, pair) => sum + pair.minutes, 0)
+    : absence
+      ? day.reconciledIstMinutes || 0
+      : 0;
+  const sollMinutes = day.officeSollMinutes || 0;
+  const puffMinutes = istMinutes - sollMinutes;
+  const hasOfficePunches = (day.office?.punches || []).length > 0;
+  const needsBooking = pairs.some((pair) => pair.extra) || Boolean(absence);
   return {
     iso: day.iso,
     date: day.date,
     weekday: day.weekday,
-    ...clocks,
-    ist: minutesToDuration(day.reconciledIstMinutes),
-    soll: minutesToDuration(day.officeSollMinutes) || "",
-    extras,
-    extraKind,
-    extraMinutes: needsBooking ? extraMinutes : null,
-    extraDuration: needsBooking ? minutesToDuration(extraMinutes) : "",
-    diffMinutes,
-    diff: minutesToSignedDuration(diffMinutes),
-    pauseMinutes: day.freeMinutes || 0,
-    pauseDuration: minutesToDuration(day.freeMinutes || 0) || "0:00",
-    extraText: extras.map((item) => item.text).join("\n"),
-    instruction: instruction(day, extras, hasOfficePunches),
+    pairs,
+    absence: absence?.label || "",
+    ist: minutesToDuration(istMinutes),
+    soll: minutesToDuration(sollMinutes) || "",
+    puffMinutes,
+    puff: minutesToSignedDuration(puffMinutes),
+    diffMinutes: puffMinutes,
+    diff: minutesToSignedDuration(puffMinutes),
     needsBooking,
     hasOfficePunches,
   };
@@ -118,56 +69,30 @@ export function buildHrExport(result) {
   return {
     title: result.officeTitle || "Arbeitszeiten",
     legend:
-      "Spalten K und G sind die Stempel aus der Büro-Auswertung (PDF). Diese Zeiten nicht ändern. Differenz ist Istzeit minus Sollzeit. Art, Zusatzzeit und Pausezeit sind die Nachbuchungsdaten.",
+      "Jede Zeile ist ein Kommen/Gehen, wie in der Buchungstafel. Weiße Büro-Zeiten sind schon gestempelt und bleiben unverändert. Blaue Zeilen sind Zusatzzeit und werden zusätzlich gebucht, als eigene Kommen/Gehen-Paare vor dem ersten Stempel oder nach dem letzten. IST, SOLL und Puff sind die Werte, die das Tool danach anzeigen muss.",
     rows,
     toBook: rows.filter((row) => row.needsBooking).length,
     unchanged: rows.filter((row) => row.hasOfficePunches).length,
   };
 }
 
+function csvCell(value) {
+  const text = String(value ?? "");
+  return /[;"\n]/.test(text) ? `"${text.replaceAll('"', '""')}"` : text;
+}
+
 export function hrToCsv(hr) {
-  const header = [
-    "Datum",
-    "WT",
-    "K",
-    "G",
-    "K",
-    "G",
-    "Istzeit",
-    "Sollzeit",
-    "Differenz",
-    "Art",
-    "Zusatzzeit",
-    "Pausezeit",
-    "Zusätzlich buchen",
-    "Anweisung",
-  ];
-  const lines = [
-    hr.legend,
-    header.join(";"),
-    ...hr.rows.map((row) =>
-      [
-        row.date,
-        row.weekday,
-        row.k1,
-        row.g1,
-        row.k2,
-        row.g2,
-        row.ist,
-        row.soll,
-        row.diff,
-        row.extraKind,
-        row.extraDuration,
-        row.pauseDuration,
-        row.extraText,
-        row.instruction,
-      ]
-        .map((value) => {
-          const text = String(value ?? "");
-          return /[;"\n]/.test(text) ? `"${text.replaceAll('"', '""')}"` : text;
-        })
-        .join(";"),
-    ),
-  ];
+  const header = ["Datum", "WT", "Abwesenheit", "Kommen", "Gehen", "Art", "IST", "SOLL", "Puff"];
+  const lines = [hr.legend, header.join(";")];
+  for (const row of hr.rows) {
+    const pairs = row.pairs.length ? row.pairs : [{ kommen: "", gehen: "", label: "" }];
+    for (const pair of pairs) {
+      lines.push(
+        [row.date, row.weekday, row.absence, pair.kommen, pair.gehen, pair.label, row.ist, row.soll, row.puff]
+          .map(csvCell)
+          .join(";"),
+      );
+    }
+  }
   return `\uFEFF${lines.join("\n")}`;
 }

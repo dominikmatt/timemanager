@@ -260,23 +260,34 @@ function downloadBlob(data, filename, type) {
 function hrPanel(hr) {
   if (!hr?.rows?.length) return "";
   const body = hr.rows
-    .map((row) => {
-      const mark = row.needsBooking ? "needs" : "";
-      return `<tr class="${mark}">
-        <td>${row.date}<div class="muted">${row.weekday}</div></td>
-        <td class="kg">${row.k1 || "—"}</td>
-        <td class="kg">${row.g1 || "—"}</td>
-        <td class="kg">${row.k2 || "—"}</td>
-        <td class="kg">${row.g2 || "—"}</td>
-        <td>${row.ist || "—"}</td>
-        <td>${row.soll || "—"}</td>
-        <td class="${diffClass(row.diffMinutes)}">${row.diff || "—"}</td>
-        <td>${row.extraKind || "—"}</td>
-        <td class="kg extra-time">${row.extraDuration || "—"}</td>
-        <td class="kg">${row.pauseDuration || "—"}</td>
-        <td>${row.extraText ? row.extraText.replaceAll("\n", "<br>") : "—"}</td>
-        <td>${row.instruction}</td>
+    .map((row, dayIndex) => {
+      const lines = row.pairs?.length ? row.pairs : [{ kommen: "", gehen: "", label: "", extra: false }];
+      const span = lines.length;
+      const band = dayIndex % 2 === 1 ? " band" : "";
+      const absenceOnly = row.absence && !row.pairs?.length ? " absence" : "";
+      return lines
+        .map((pair, index) => {
+          const lead =
+            index === 0
+              ? `<td class="day" rowspan="${span}">${row.date}<div class="muted">${row.weekday}</div></td>
+        <td class="abs" rowspan="${span}">${row.absence || "—"}</td>`
+              : "";
+          const tail =
+            index === 0
+              ? `<td class="num" rowspan="${span}">${row.ist || "—"}</td>
+        <td class="num" rowspan="${span}">${row.soll || "—"}</td>
+        <td class="num ${diffClass(row.puffMinutes ?? row.diffMinutes)}" rowspan="${span}">${row.puff || row.diff || "—"}</td>`
+              : "";
+          const mark = pair.extra ? " extra" : "";
+          return `<tr class="${band}${absenceOnly}${mark}">
+        ${lead}
+        <td class="kg punch">${pair.kommen || "—"}</td>
+        <td class="kg punch">${pair.gehen || "—"}</td>
+        <td class="art">${pair.label || "—"}</td>
+        ${tail}
       </tr>`;
+        })
+        .join("");
     })
     .join("");
   return `
@@ -296,18 +307,13 @@ function hrPanel(hr) {
           <thead>
             <tr>
               <th>Datum</th>
-              <th>K</th>
-              <th>G</th>
-              <th>K</th>
-              <th>G</th>
-              <th>Istzeit</th>
-              <th>Sollzeit</th>
-              <th>Differenz</th>
+              <th>Abwesenheit</th>
+              <th>Kommen</th>
+              <th>Gehen</th>
               <th>Art</th>
-              <th>Zusatzzeit</th>
-              <th>Pausezeit</th>
-              <th>Zusätzlich buchen</th>
-              <th>Anweisung</th>
+              <th>IST</th>
+              <th>SOLL</th>
+              <th>Puff</th>
             </tr>
           </thead>
           <tbody>${body}</tbody>
