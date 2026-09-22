@@ -269,7 +269,7 @@ describe("reconcileDay", () => {
     assert.equal(day.freeMinutes, 75);
     assert.match(day.note, /Homeoffice/);
     assert.match(day.note, /als Mittag gebucht/);
-    assert.doesNotMatch(day.note, /Auswärts/);
+    assert.doesNotMatch(day.note, /Nachtrag/);
   });
 
   it("does not invent a Mittag when Crewmeister already has separate bookings", () => {

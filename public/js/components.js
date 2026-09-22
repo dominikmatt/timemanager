@@ -1,7 +1,7 @@
 const TYPE_LABEL = {
   office: "Büro",
-  on_the_way: "Auswärts",
-  after_office: "Auswärts",
+  on_the_way: "Nachtrag",
+  after_office: "Nachtrag",
   homeoffice: "Homeoffice",
   sickness: "Krankheit",
   vacation: "Urlaub",

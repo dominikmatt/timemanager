@@ -110,10 +110,10 @@ function generateNote(day) {
     );
     if (added.length) {
       parts.push(
-        `Ergänzt aus Crewmeister: ${added.map((i) => `${formatInterval(i)} (${i.type === "on_the_way" ? "Auswärts" : "Auswärts nach Büro"})`).join(", ")}.`,
+        `Ergänzt aus Crewmeister: ${added.map((i) => `${formatInterval(i)} (Nachtrag)`).join(", ")}.`,
       );
     } else if (crew?.intervals?.length) {
-      parts.push("Keine zusätzliche Auswärtszeit außerhalb der Bürozeit und Freizeitpuffer.");
+      parts.push("Kein zusätzlicher Nachtrag außerhalb der Bürozeit und des Freizeitpuffers.");
     } else {
       parts.push("Keine Crewmeister-Zeiten für diesen Tag.");
     }

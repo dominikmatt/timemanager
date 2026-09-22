@@ -40,8 +40,8 @@ describe("hr export", () => {
     );
     const row = buildHrRow(day);
     assert.deepEqual(pairText(row), ["06:45–07:29 +", "07:44–11:47", "12:15–16:01", "16:33–17:00 +"]);
-    assert.equal(row.pairs[0].label, "Auswärts");
-    assert.equal(row.pairs[3].label, "Auswärts nach Büro");
+    assert.equal(row.pairs[0].label, "Nachtrag");
+    assert.equal(row.pairs[3].label, "Nachtrag");
     assert.equal(row.ist, "9:00");
     assert.equal(row.soll, "8:17");
     assert.equal(row.puff, "+0:43");
@@ -50,9 +50,9 @@ describe("hr export", () => {
 
     const csv = hrToCsv({ legend: "Legende", rows: [row] });
     assert.match(csv, /Kommen;Gehen;Art;IST;SOLL;Puff/);
-    assert.match(csv, /06:45;07:29;Auswärts;9:00;8:17;\+0:43/);
+    assert.match(csv, /06:45;07:29;Nachtrag;9:00;8:17;\+0:43/);
     assert.match(csv, /07:44;11:47;Büro;9:00;8:17;\+0:43/);
-    assert.match(csv, /16:33;17:00;Auswärts nach Büro/);
+    assert.match(csv, /16:33;17:00;Nachtrag/);
   });
 
   it("lists 24.08 extra time as Kommen/Gehen around the office stamps", () => {
@@ -251,7 +251,7 @@ describe("hr export", () => {
     );
     assert.equal(sheet.getRow(4).getCell(4).value, "06:45");
     assert.equal(sheet.getRow(4).getCell(5).value, "07:30");
-    assert.equal(sheet.getRow(4).getCell(6).value, "Auswärts");
+    assert.equal(sheet.getRow(4).getCell(6).value, "Nachtrag");
     assert.equal(sheet.getRow(4).getCell(7).value, "9:35");
     assert.equal(sheet.getRow(4).getCell(8).value, "8:17");
     assert.equal(sheet.getRow(4).getCell(9).value, "+1:18");

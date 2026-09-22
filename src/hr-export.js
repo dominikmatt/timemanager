@@ -7,8 +7,8 @@ import {
 import { detectAbsence } from "./absence.js";
 
 const EXTRA_LABEL = {
-  on_the_way: "Auswärts",
-  after_office: "Auswärts nach Büro",
+  on_the_way: "Nachtrag",
+  after_office: "Nachtrag",
   homeoffice: "Homeoffice",
 };
 
