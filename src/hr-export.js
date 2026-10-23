@@ -9,10 +9,17 @@ import { detectAbsence } from "./absence.js";
 const EXTRA_LABEL = {
   on_the_way: "Nachtrag",
   after_office: "Nachtrag",
+  nachtrag: "Nachtrag",
   homeoffice: "Homeoffice",
 };
 
-const WORK_TYPES = new Set(["office", "on_the_way", "after_office", "homeoffice"]);
+const ABSENCE_ART = {
+  sickness: "Krank",
+  vacation: "Urlaub",
+  compensation: "Freizeitausgleich",
+};
+
+const WORK_TYPES = new Set(["office", "on_the_way", "after_office", "nachtrag", "homeoffice"]);
 
 function pairsForDay(day) {
   return (day.reconciledIntervals || [])
@@ -47,6 +54,10 @@ export function buildHrRow(day) {
     weekday: day.weekday,
     pairs,
     absence: absence?.label || "",
+    absenceType: absence?.type || "",
+    art: absence ? ABSENCE_ART[absence.type] || absence.label : "",
+    istMinutes,
+    sollMinutes,
     ist: minutesToDuration(istMinutes),
     soll: minutesToDuration(sollMinutes) || "",
     puffMinutes,
@@ -56,6 +67,23 @@ export function buildHrRow(day) {
     needsBooking,
     hasOfficePunches,
   };
+}
+
+export function summarizeHrRows(rows) {
+  const totals = { istMinutes: 0, sollMinutes: 0, sickMinutes: 0, vacationMinutes: 0 };
+  for (const row of rows || []) {
+    totals.istMinutes += row.istMinutes || 0;
+    totals.sollMinutes += row.sollMinutes || 0;
+    if (row.absenceType === "sickness") totals.sickMinutes += row.istMinutes || 0;
+    if (row.absenceType === "vacation") totals.vacationMinutes += row.istMinutes || 0;
+  }
+  totals.diffMinutes = totals.istMinutes - totals.sollMinutes;
+  totals.ist = minutesToDuration(totals.istMinutes);
+  totals.soll = minutesToDuration(totals.sollMinutes);
+  totals.diff = minutesToSignedDuration(totals.diffMinutes);
+  totals.sick = minutesToDuration(totals.sickMinutes);
+  totals.vacation = minutesToDuration(totals.vacationMinutes);
+  return totals;
 }
 
 export function buildHrExport(result) {
@@ -69,8 +97,9 @@ export function buildHrExport(result) {
   return {
     title: result.officeTitle || "Arbeitszeiten",
     legend:
-      "Jede Zeile ist ein Kommen/Gehen, wie in der Buchungstafel. Weiße Büro-Zeiten sind schon gestempelt und bleiben unverändert. Blaue Zeilen sind Zusatzzeit und werden zusätzlich gebucht, als eigene Kommen/Gehen-Paare vor dem ersten Stempel oder nach dem letzten. IST, SOLL und Puff sind die Werte, die das Tool danach anzeigen muss.",
+      "Jede Zeile ist ein Kommen/Gehen, wie in der Buchungstafel. Weiße Büro-Zeiten bleiben unverändert. Nachtrag ist blau, Urlaub grün, Krank rot. IST, SOLL und Puff müssen danach im Tool übereinstimmen.",
     rows,
+    summary: summarizeHrRows(rows),
     toBook: rows.filter((row) => row.needsBooking).length,
     unchanged: rows.filter((row) => row.hasOfficePunches).length,
   };
@@ -85,7 +114,7 @@ export function hrToCsv(hr) {
   const header = ["Datum", "WT", "Abwesenheit", "Kommen", "Gehen", "Art", "IST", "SOLL", "Puff"];
   const lines = [hr.legend, header.join(";")];
   for (const row of hr.rows) {
-    const pairs = row.pairs.length ? row.pairs : [{ kommen: "", gehen: "", label: "" }];
+    const pairs = row.pairs.length ? row.pairs : [{ kommen: "", gehen: "", label: row.art || "" }];
     for (const pair of pairs) {
       lines.push(
         [row.date, row.weekday, row.absence, pair.kommen, pair.gehen, pair.label, row.ist, row.soll, row.puff]

@@ -97,7 +97,7 @@ describe("hr export", () => {
     assert.equal(row.puff, "+1:18");
   });
 
-  it("asks HR to book sickness when the PDF has no punches", () => {
+  it("asks HR to book sickness when the PDF has no punches", async () => {
     const day = reconcileDay(
       {
         iso: "2026-08-03",
@@ -120,10 +120,18 @@ describe("hr export", () => {
     const row = buildHrRow(day);
     assert.deepEqual(row.pairs, []);
     assert.equal(row.absence, "Krankheit");
+    assert.equal(row.art, "Krank");
     assert.equal(row.ist, "8:17");
     assert.equal(row.soll, "8:17");
     assert.equal(row.puff, "0:00");
     assert.equal(row.needsBooking, true);
+    const workbook = new ExcelJS.Workbook();
+    await workbook.xlsx.load(await hrToXlsxBuffer({ title: "Buchungen", legend: "", rows: [row] }));
+    const sheet = workbook.getWorksheet("Buchungen");
+    for (const col of [1, 3, 4, 5, 6, 7]) {
+      assert.equal(sheet.getRow(4).getCell(col).fill.fgColor.argb, "FFF4C7C7");
+    }
+    assert.equal(sheet.getRow(4).getCell(6).value, "Krank");
   });
 
   it("asks HR to book Urlaub and Freizeitausgleich as full days", () => {
@@ -153,6 +161,7 @@ describe("hr export", () => {
     assert.equal(holiday.soll, "5:22");
     assert.equal(holiday.puff, "0:00");
     assert.equal(holiday.absence, "Urlaub");
+    assert.equal(holiday.art, "Urlaub");
     assert.deepEqual(holiday.pairs, []);
 
     const compensation = buildHrRow(
@@ -260,7 +269,10 @@ describe("hr export", () => {
     assert.equal(sheet.getRow(5).getCell(6).value, "Büro");
     assert.equal(sheet.getRow(8).getCell(4).value, "17:00");
     assert.equal(sheet.getRow(8).getCell(5).value, "17:30");
-    assert.equal(sheet.getRow(4).getCell(4).fill.fgColor.argb, "FFD6EAF8");
+    for (const col of [1, 4, 5, 6, 7, 9]) {
+      assert.equal(sheet.getRow(4).getCell(col).fill.fgColor.argb, "FFD6EAF8");
+    }
     assert.equal(sheet.getRow(5).getCell(4).fill?.fgColor?.argb, undefined);
+    assert.equal(sheet.getRow(5).getCell(6).fill?.fgColor?.argb, undefined);
   });
 });

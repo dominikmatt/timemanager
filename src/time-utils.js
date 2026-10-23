@@ -17,7 +17,9 @@ export function parseTimeToMinutes(value) {
 
 export function minutesToClock(minutes) {
   if (minutes == null || Number.isNaN(minutes)) return "";
-  const wrapped = ((Math.round(minutes) % 1440) + 1440) % 1440;
+  const rounded = Math.round(minutes);
+  if (rounded === 1440) return "24:00";
+  const wrapped = ((rounded % 1440) + 1440) % 1440;
   const h = Math.floor(wrapped / 60);
   const m = wrapped % 60;
   return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;

@@ -132,7 +132,7 @@ function generateNote(day) {
       `Keine Büro-Stempel. Crewmeister: ${absence.label} (${absence.days} Tag). Ist auf Soll gesetzt (${minutesToDuration(day.reconciledIstMinutes)}).`,
     );
   } else if (crew?.intervals?.length) {
-    const label = isHomeoffice(crew) ? "Homeoffice" : "Crewmeister-Zeit";
+    const label = isHomeoffice(crew) ? "Homeoffice" : "Nachtrag";
     parts.push(
       `Keine Büro-Stempel. ${label} übernommen: ${listIntervals(crew.intervals)} (Ist ${minutesToDuration(crew.istMinutes)}, Pause bereits abgezogen).`,
     );
@@ -274,14 +274,15 @@ function reconcileRemoteDay(office, crew) {
     reconciledIstMinutes = absenceCreditMinutes(office, crew, absence.days);
     kind = absence.type;
   } else if (crew?.intervals?.length) {
+    const remoteType = isHomeoffice(crew) ? "homeoffice" : "nachtrag";
     reconciledIntervals = crew.intervals.map((interval) => ({
       ...interval,
-      type: "homeoffice",
+      type: remoteType,
     }));
     const fromIntervals = crew.intervals.reduce((sum, i) => sum + intervalDuration(i), 0);
     reconciledIstMinutes = alignWithCrewIst(crew.istMinutes || fromIntervals, crew.istMinutes, warnings);
-    kind = "homeoffice";
-    if (crew.intervals.length === 1 && crew.pauseMinutes) {
+    kind = remoteType;
+    if (remoteType === "homeoffice" && crew.intervals.length === 1 && crew.pauseMinutes) {
       const lunch = placeHomeofficeLunch(crew.intervals[0], crew.pauseMinutes);
       if (lunch) {
         lunchIntervals.push(lunch);

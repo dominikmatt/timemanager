@@ -1,18 +1,29 @@
 import ExcelJS from "exceljs";
+import { summarizeHrRows } from "./hr-export.js";
 
 const GRID = "FFD5DDE5";
 const GRID_STRONG = "FF5D6D7E";
 const HEADER = "FF2C3E50";
-const EXTRA = "FFD6EAF8";
-const EXTRA_INK = "FF1A365D";
+const NACHTRAG = "FFD6EAF8";
+const NACHTRAG_INK = "FF1A365D";
+const URLAUB = "FFD4EDDA";
+const URLAUB_INK = "FF1E6B3A";
+const KRANK = "FFF4C7C7";
+const KRANK_INK = "FF8A2F2F";
 const BAND = "FFEEF2F5";
-const ABSENCE = "FFFCF3CF";
 const INK = "FF1C2833";
 const MUTED = "FF7F8C8D";
 const PUFF_PLUS = "FF196F3D";
 const PUFF_MINUS = "FF922B21";
 
 const COLUMNS = ["Datum", "WT", "Abwesenheit", "Kommen", "Gehen", "Art", "IST", "SOLL", "Puff"];
+
+function artColors(label) {
+  if (label === "Nachtrag") return { fill: NACHTRAG, ink: NACHTRAG_INK };
+  if (label === "Urlaub") return { fill: URLAUB, ink: URLAUB_INK };
+  if (label === "Krank") return { fill: KRANK, ink: KRANK_INK };
+  return null;
+}
 
 function paint(cell, { fill, font, align, strongBottom }) {
   cell.font = font;
@@ -40,11 +51,12 @@ export async function hrToXlsxBuffer(hr) {
   sheet.getCell("A1").alignment = { vertical: "middle" };
   sheet.getRow(1).height = 24;
 
+  const summary = hr.summary || summarizeHrRows(hr.rows);
   sheet.mergeCells("A2:I2");
-  sheet.getCell("A2").value = hr.legend;
+  sheet.getCell("A2").value = `IST ${summary.ist}    SOLL ${summary.soll}    Diff ${summary.diff}    Krankheit ${summary.sick}    Urlaub ${summary.vacation}\n${hr.legend || ""}`;
   sheet.getCell("A2").font = { italic: true, size: 11, name: "Calibri", color: { argb: "FF5D6D7E" } };
   sheet.getCell("A2").alignment = { wrapText: true, vertical: "middle" };
-  sheet.getRow(2).height = 36;
+  sheet.getRow(2).height = 48;
 
   const headerRow = sheet.getRow(3);
   headerRow.height = 22;
@@ -61,10 +73,9 @@ export async function hrToXlsxBuffer(hr) {
 
   let cursor = 4;
   for (const [dayIndex, row] of hr.rows.entries()) {
-    const lines = row.pairs.length ? row.pairs : [{ kommen: "", gehen: "", label: "", extra: false }];
+    const lines = row.pairs.length ? row.pairs : [{ kommen: "", gehen: "", label: row.art || "", extra: false }];
     const start = cursor;
     const band = dayIndex % 2 === 1;
-    const absenceOnly = Boolean(row.absence) && row.pairs.length === 0;
 
     for (const pair of lines) {
       const excelRow = sheet.getRow(cursor);
@@ -84,29 +95,25 @@ export async function hrToXlsxBuffer(hr) {
     }
 
     const end = cursor - 1;
-    if (end > start) {
-      for (const col of [1, 2, 3, 7, 8, 9]) sheet.mergeCells(start, col, end, col);
-    }
 
     for (let rowNumber = start; rowNumber <= end; rowNumber += 1) {
       const excelRow = sheet.getRow(rowNumber);
       const pair = lines[rowNumber - start];
       const last = rowNumber === end;
-      const baseFill = absenceOnly ? ABSENCE : band ? BAND : null;
+      const artTone = artColors(pair.label);
+      const baseFill = band ? BAND : null;
       for (let col = 1; col <= 9; col += 1) {
         const cell = excelRow.getCell(col);
-        const isPunch = col === 4 || col === 5 || col === 6;
-        const fill = pair.extra && isPunch ? EXTRA : baseFill;
         const puffColor =
           col === 9 ? (row.puffMinutes > 0 ? PUFF_PLUS : row.puffMinutes < 0 ? PUFF_MINUS : INK) : null;
-        const fontColor = pair.extra && isPunch ? EXTRA_INK : col === 6 && !pair.extra ? MUTED : puffColor || INK;
+        const fontColor = artTone ? artTone.ink : col === 6 && !pair.extra ? MUTED : puffColor || INK;
         paint(cell, {
-          fill,
+          fill: artTone ? artTone.fill : baseFill,
           strongBottom: last,
           font: {
             name: "Calibri",
             size: 11,
-            bold: (pair.extra && isPunch) || col >= 7,
+            bold: Boolean(artTone) || col >= 7,
             color: { argb: fontColor },
           },
           align: {

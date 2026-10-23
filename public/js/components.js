@@ -3,6 +3,7 @@ const TYPE_LABEL = {
   on_the_way: "Nachtrag",
   after_office: "Nachtrag",
   homeoffice: "Homeoffice",
+  nachtrag: "Nachtrag",
   sickness: "Krankheit",
   vacation: "Urlaub",
   compensation: "Freizeitausgleich",
@@ -20,17 +21,13 @@ export class FileCompareForm extends HTMLElement {
             <input id="office" name="office" type="file" accept=".pdf,application/pdf" required />
           </div>
           <div class="file-field">
-            <label for="crewmeister">Crewmeister 1. Monat</label>
-            <input id="crewmeister" name="crewmeister" type="file" accept=".xlsx,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" required />
-          </div>
-          <div class="file-field">
-            <label for="crewmeister2">Crewmeister 2. Monat</label>
-            <input id="crewmeister2" name="crewmeister" type="file" multiple accept=".xlsx,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" />
+            <label for="crewmeister">Arbeitszeit</label>
+            <input id="crewmeister" name="crewmeister" type="file" accept=".xlsx,.xls,.csv,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" required />
           </div>
         </div>
         <div class="actions">
           <button type="submit">Abgleichen</button>
-          <p class="muted">Beide Monats-Exporte wählen. Alle Tage dazwischen werden berechnet, auch Wochenenden.</p>
+          <p class="muted">Crewmeister-Excel oder Tempo-CSV.</p>
         </div>
         <p class="error" hidden></p>
       </form>
@@ -49,14 +46,12 @@ export class FileCompareForm extends HTMLElement {
     try {
       const form = this.querySelector("form");
       const office = form.office.files[0];
-      const crewFiles = [...form.querySelectorAll('input[name="crewmeister"]')].flatMap(
-        (input) => [...input.files],
-      );
+      const crew = form.crewmeister.files[0];
       if (!office) throw new Error("Bitte das Büro-PDF hochladen.");
-      if (!crewFiles.length) throw new Error("Bitte mindestens eine Crewmeister-Datei wählen.");
+      if (!crew) throw new Error("Bitte die Arbeitszeit-Datei wählen.");
       const body = new FormData();
       body.append("office", office);
-      for (const file of crewFiles) body.append("crewmeister", file);
+      body.append("crewmeister", crew);
       const response = await fetch("/api/compare", { method: "POST", body });
       const payload = await response.json();
       if (!response.ok) throw new Error(payload.error || "Vergleich fehlgeschlagen.");
@@ -139,7 +134,10 @@ function absenceChip(day) {
 function crewLabel(day) {
   if (!day.crew) return '<span class="muted">—</span>';
   const bits = [];
-  if (day.crew.intervals?.length) bits.push(chips(day.crew.intervals.map((i) => ({ ...i, type: "homeoffice" }))));
+  if (day.crew.intervals?.length) {
+    const type = /homeoffice|home office|home-office/i.test(day.crew.comment || "") ? "homeoffice" : "nachtrag";
+    bits.push(chips(day.crew.intervals.map((interval) => ({ ...interval, type }))));
+  }
   const extra = [day.crew.comment, day.crew.absence].filter(Boolean).join(" · ");
   if (extra) bits.push(`<div class="muted">${extra}</div>`);
   if (!bits.length && day.crew.istMinutes) bits.push(duration(day.crew.istMinutes));
@@ -169,8 +167,8 @@ function toCsv(result) {
     "WT",
     "Büro",
     "Büro Ist",
-    "Crewmeister",
-    "Crew Ist",
+    "Erfasst",
+    "Erfasst Ist",
     "Kommentar",
     "Abgleich",
     "Abgleich Ist",
@@ -257,34 +255,46 @@ function downloadBlob(data, filename, type) {
   URL.revokeObjectURL(url);
 }
 
+function toneClass(label) {
+  if (label === "Nachtrag") return "tone-nachtrag";
+  if (label === "Krank") return "tone-krank";
+  if (label === "Urlaub") return "tone-urlaub";
+  return "";
+}
+
+function hrSummary(rows) {
+  return (rows || []).reduce(
+    (acc, row) => {
+      acc.ist += row.istMinutes || 0;
+      acc.soll += row.sollMinutes || 0;
+      if (row.absenceType === "sickness") acc.sick += row.istMinutes || 0;
+      if (row.absenceType === "vacation") acc.vacation += row.istMinutes || 0;
+      return acc;
+    },
+    { ist: 0, soll: 0, sick: 0, vacation: 0 },
+  );
+}
+
 function hrPanel(hr) {
   if (!hr?.rows?.length) return "";
+  const summary = hrSummary(hr.rows);
+  const diff = summary.ist - summary.soll;
   const body = hr.rows
     .map((row, dayIndex) => {
-      const lines = row.pairs?.length ? row.pairs : [{ kommen: "", gehen: "", label: "", extra: false }];
-      const span = lines.length;
+      const lines = row.pairs?.length ? row.pairs : [{ kommen: "", gehen: "", label: row.art || "", extra: false }];
       const band = dayIndex % 2 === 1 ? " band" : "";
-      const absenceOnly = row.absence && !row.pairs?.length ? " absence" : "";
       return lines
         .map((pair, index) => {
-          const lead =
-            index === 0
-              ? `<td class="day" rowspan="${span}">${row.date}<div class="muted">${row.weekday}</div></td>
-        <td class="abs" rowspan="${span}">${row.absence || "—"}</td>`
-              : "";
-          const tail =
-            index === 0
-              ? `<td class="num" rowspan="${span}">${row.ist || "—"}</td>
-        <td class="num" rowspan="${span}">${row.soll || "—"}</td>
-        <td class="num ${diffClass(row.puffMinutes ?? row.diffMinutes)}" rowspan="${span}">${row.puff || row.diff || "—"}</td>`
-              : "";
-          const mark = pair.extra ? " extra" : "";
-          return `<tr class="${band}${absenceOnly}${mark}">
-        ${lead}
+          const first = index === 0;
+          return `<tr class="${band} ${toneClass(pair.label)}">
+        <td class="day">${first ? `${row.date}<div class="muted">${row.weekday}</div>` : ""}</td>
+        <td class="abs">${first ? row.absence || "—" : ""}</td>
         <td class="kg punch">${pair.kommen || "—"}</td>
         <td class="kg punch">${pair.gehen || "—"}</td>
         <td class="art">${pair.label || "—"}</td>
-        ${tail}
+        <td class="num">${first ? row.ist || "—" : ""}</td>
+        <td class="num">${first ? row.soll || "—" : ""}</td>
+        <td class="num ${first ? diffClass(row.puffMinutes ?? row.diffMinutes) : ""}">${first ? row.puff || row.diff || "—" : ""}</td>
       </tr>`;
         })
         .join("");
@@ -295,6 +305,11 @@ function hrPanel(hr) {
       <h2>Für die Personalabteilung</h2>
       <p class="lede">${hr.legend}</p>
       <div class="summary">
+        <div><span>IST</span><strong>${duration(summary.ist)}</strong></div>
+        <div><span>SOLL</span><strong>${duration(summary.soll)}</strong></div>
+        <div><span>Diff</span><strong class="${diffClass(diff)}">${signedDuration(diff)}</strong></div>
+        <div><span>Krankheit</span><strong class="sum-krank">${duration(summary.sick)}</strong></div>
+        <div><span>Urlaub</span><strong class="sum-urlaub">${duration(summary.vacation)}</strong></div>
         <div><span>Büro-Tage unverändert</span><strong>${hr.unchanged}</strong></div>
         <div><span>Nachbuchungen</span><strong>${hr.toBook}</strong></div>
       </div>
@@ -372,7 +387,7 @@ export class TimeResultTable extends HTMLElement {
 
   render() {
     if (!this.#result) {
-      this.innerHTML = `<p class="empty">Noch kein Vergleich. PDF und Excel oben wählen.</p>`;
+      this.innerHTML = `<p class="empty">Noch kein Vergleich. PDF und Arbeitszeit oben wählen.</p>`;
       return;
     }
 
@@ -403,12 +418,12 @@ export class TimeResultTable extends HTMLElement {
       <section class="panel">
         <div class="summary">
           <div><span>Büro Ist</span><strong>${duration(totals.officeIst)}</strong></div>
-          <div><span>Crewmeister Ist</span><strong>${duration(totals.crewIst)}</strong></div>
+          <div><span>Erfasste Ist</span><strong>${duration(totals.crewIst)}</strong></div>
           <div><span>Abgleich Ist</span><strong>${duration(totals.reconciledIst)}</strong></div>
           <div><span>Büro Soll</span><strong>${duration(totals.officeSoll)}</strong></div>
           <div><span>Differenz</span><strong class="${diffClass(diffTotal)}">${signedDuration(diffTotal)}</strong></div>
           <div><span>Freizeit</span><strong>${duration(totals.free)}</strong></div>
-          <div><span>Crewmeister-Dateien</span><strong>${this.#result.crewFiles || 0}</strong></div>
+          <div><span>Arbeitszeit-Dateien</span><strong>${this.#result.crewFiles || 0}</strong></div>
           <div><span>Zeitraum</span><strong>${germanRange(this.#result.crewRange)} · ${view.days.length}${
             this.#ignoreEmpty && view.days.length !== allDays ? ` von ${allDays}` : ""
           } Tage</strong></div>
@@ -426,7 +441,7 @@ export class TimeResultTable extends HTMLElement {
               <tr>
                 <th>Datum</th>
                 <th>Büro</th>
-                <th>Crewmeister</th>
+                <th>Erfasst</th>
                 <th>Abgleich</th>
                 <th>Differenz</th>
                 <th>Pause</th>

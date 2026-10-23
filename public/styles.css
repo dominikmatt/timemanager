@@ -301,24 +301,40 @@ td.note {
   background: #f7f4ee;
 }
 
-.hr-table tr.extra td.punch,
-.hr-table tr.extra td.art {
-  background: #d6eaf8;
-  color: #1a365d;
-}
-
-.hr-table tr.absence td.abs {
-  background: var(--free-bg);
-  color: var(--free);
-  font-weight: 600;
-}
-
 .hr-table td.art {
   color: var(--muted);
 }
 
-.hr-table tr.extra td.art {
-  font-weight: 600;
+.hr-table tr.tone-nachtrag td,
+.hr-table tr.tone-nachtrag:hover td {
+  background: #d6eaf8;
+  color: #1a365d;
+}
+
+.hr-table tr.tone-urlaub td,
+.hr-table tr.tone-urlaub:hover td {
+  background: #d4edda;
+  color: #1e6b3a;
+}
+
+.hr-table tr.tone-krank td,
+.hr-table tr.tone-krank:hover td {
+  background: #f4c7c7;
+  color: #8a2f2f;
+}
+
+.hr-table tr.tone-nachtrag .muted,
+.hr-table tr.tone-urlaub .muted,
+.hr-table tr.tone-krank .muted {
+  color: inherit;
+}
+
+.summary .sum-krank {
+  color: #8a2f2f;
+}
+
+.summary .sum-urlaub {
+  color: #1e6b3a;
 }
 
 td.diff,

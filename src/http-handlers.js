@@ -41,7 +41,7 @@ export async function handleCompare(req, res) {
       return;
     }
     if (!crewFiles.length) {
-      json(res, 400, { error: "Bitte mindestens eine Crewmeister-Excel-Datei hochladen." });
+      json(res, 400, { error: "Bitte mindestens eine Crewmeister-Excel oder Tempo-CSV hochladen." });
       return;
     }
     const result = await compareBuffers(
