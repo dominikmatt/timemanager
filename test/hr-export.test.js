@@ -89,12 +89,43 @@ describe("hr export", () => {
       "06:45–07:30 +",
       "07:44–11:47",
       "12:13–16:29",
-      "16:29–16:30 +",
       "17:00–17:30 +",
     ]);
-    assert.equal(row.ist, "9:35");
+    assert.equal(row.ist, "9:34");
     assert.equal(row.soll, "8:17");
-    assert.equal(row.puff, "+1:18");
+    assert.equal(row.puff, "+1:17");
+  });
+
+  it("drops Nachtrag slices of one or two minutes", () => {
+    const row = buildHrRow(
+      reconcileDay(
+        {
+          iso: "2026-10-13",
+          weekday: "Di",
+          punches: [t("08:20"), t("11:41"), t("12:10"), t("16:28")],
+          intervals: [
+            { start: t("08:20"), end: t("11:41"), type: "office" },
+            { start: t("12:10"), end: t("16:28"), type: "office" },
+          ],
+          istMinutes: t("7:25"),
+          sollMinutes: t("8:17"),
+          dayModel: "55",
+        },
+        {
+          iso: "2026-10-13",
+          intervals: [
+            { start: t("07:30"), end: t("08:15") },
+            { start: t("08:20"), end: t("16:30") },
+            { start: t("16:45"), end: t("17:30") },
+          ],
+          pauseMinutes: 0,
+          istMinutes: t("9:00"),
+          comment: "",
+          absence: "",
+        },
+      ),
+    );
+    assert.deepEqual(pairText(row), ["07:30–08:15 +", "08:20–11:41", "12:10–16:28", "16:45–17:30 +"]);
   });
 
   it("asks HR to book sickness when the PDF has no punches", async () => {
@@ -261,14 +292,14 @@ describe("hr export", () => {
     assert.equal(sheet.getRow(4).getCell(4).value, "06:45");
     assert.equal(sheet.getRow(4).getCell(5).value, "07:30");
     assert.equal(sheet.getRow(4).getCell(6).value, "Nachtrag");
-    assert.equal(sheet.getRow(4).getCell(7).value, "9:35");
+    assert.equal(sheet.getRow(4).getCell(7).value, "9:34");
     assert.equal(sheet.getRow(4).getCell(8).value, "8:17");
-    assert.equal(sheet.getRow(4).getCell(9).value, "+1:18");
+    assert.equal(sheet.getRow(4).getCell(9).value, "+1:17");
     assert.equal(sheet.getRow(5).getCell(4).value, "07:44");
     assert.equal(sheet.getRow(5).getCell(5).value, "11:47");
     assert.equal(sheet.getRow(5).getCell(6).value, "Büro");
-    assert.equal(sheet.getRow(8).getCell(4).value, "17:00");
-    assert.equal(sheet.getRow(8).getCell(5).value, "17:30");
+    assert.equal(sheet.getRow(7).getCell(4).value, "17:00");
+    assert.equal(sheet.getRow(7).getCell(5).value, "17:30");
     for (const col of [1, 4, 5, 6, 7, 9]) {
       assert.equal(sheet.getRow(4).getCell(col).fill.fgColor.argb, "FFD6EAF8");
     }
