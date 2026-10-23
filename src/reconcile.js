@@ -12,6 +12,12 @@ import {
 import { absenceCreditMinutes, detectAbsence } from "./absence.js";
 
 export const CREW_IST_TOLERANCE_MINUTES = 5;
+const IGNORED_STAMP_MINUTES = 2;
+
+function isIgnoredStamp(interval) {
+  const minutes = intervalDuration(interval);
+  return minutes >= 1 && minutes <= IGNORED_STAMP_MINUTES;
+}
 
 function alignWithCrewIst(calculated, crewIst, warnings) {
   if (crewIst == null) return calculated;
@@ -132,7 +138,7 @@ function generateNote(day) {
       `Keine Büro-Stempel. Crewmeister: ${absence.label} (${absence.days} Tag). Ist auf Soll gesetzt (${minutesToDuration(day.reconciledIstMinutes)}).`,
     );
   } else if (crew?.intervals?.length) {
-    const label = isHomeoffice(crew) ? "Homeoffice" : "Crewmeister-Zeit";
+    const label = isHomeoffice(crew) ? "Homeoffice" : "Nachtrag";
     parts.push(
       `Keine Büro-Stempel. ${label} übernommen: ${listIntervals(crew.intervals)} (Ist ${minutesToDuration(crew.istMinutes)}, Pause bereits abgezogen).`,
     );
@@ -203,10 +209,14 @@ function reconcileOfficeDay(office, crew) {
   ];
 
   const crewIntervals = crew?.intervals || [];
-  const leftover = subtractIntervals(crewIntervals, blocked).map((interval) => ({
+  const rawLeftover = subtractIntervals(crewIntervals, blocked).map((interval) => ({
     ...interval,
     type: classifyLeftover(interval, firstOffice, lastOffice),
   }));
+  const ignoredMinutes = rawLeftover
+    .filter((interval) => interval.type !== "extra" && isIgnoredStamp(interval))
+    .reduce((sum, interval) => sum + intervalDuration(interval), 0);
+  const leftover = rawLeftover.filter((interval) => interval.type === "extra" || !isIgnoredStamp(interval));
 
   const crewSpan = spanOf(crewIntervals);
   const freeIntervals = [morningWindow, eveningWindow]
@@ -227,7 +237,8 @@ function reconcileOfficeDay(office, crew) {
   const addedWork = leftover.filter((i) => i.type === "on_the_way" || i.type === "after_office");
   const officeIst = officeIntervals.reduce((sum, i) => sum + intervalDuration(i), 0);
   const calculatedIst = officeIst + addedWork.reduce((sum, i) => sum + intervalDuration(i), 0);
-  const reconciledIstMinutes = alignWithCrewIst(calculatedIst, crew?.istMinutes, warnings);
+  const snapTarget = crew?.istMinutes == null ? null : crew.istMinutes - ignoredMinutes;
+  const reconciledIstMinutes = alignWithCrewIst(calculatedIst, snapTarget, warnings);
 
   const reconciledIntervals = [
     ...leftover.filter((i) => i.type !== "extra"),
@@ -274,14 +285,21 @@ function reconcileRemoteDay(office, crew) {
     reconciledIstMinutes = absenceCreditMinutes(office, crew, absence.days);
     kind = absence.type;
   } else if (crew?.intervals?.length) {
-    reconciledIntervals = crew.intervals.map((interval) => ({
-      ...interval,
-      type: "homeoffice",
-    }));
-    const fromIntervals = crew.intervals.reduce((sum, i) => sum + intervalDuration(i), 0);
-    reconciledIstMinutes = alignWithCrewIst(crew.istMinutes || fromIntervals, crew.istMinutes, warnings);
-    kind = "homeoffice";
-    if (crew.intervals.length === 1 && crew.pauseMinutes) {
+    const remoteType = isHomeoffice(crew) ? "homeoffice" : "nachtrag";
+    const ignoredMinutes = crew.intervals
+      .filter(isIgnoredStamp)
+      .reduce((sum, interval) => sum + intervalDuration(interval), 0);
+    reconciledIntervals = crew.intervals
+      .filter((interval) => !isIgnoredStamp(interval))
+      .map((interval) => ({
+        ...interval,
+        type: remoteType,
+      }));
+    const fromIntervals = reconciledIntervals.reduce((sum, interval) => sum + intervalDuration(interval), 0);
+    const base = crew.istMinutes ?? fromIntervals + ignoredMinutes;
+    reconciledIstMinutes = alignWithCrewIst(base - ignoredMinutes, base - ignoredMinutes, warnings);
+    kind = remoteType;
+    if (remoteType === "homeoffice" && crew.intervals.length === 1 && crew.pauseMinutes) {
       const lunch = placeHomeofficeLunch(crew.intervals[0], crew.pauseMinutes);
       if (lunch) {
         lunchIntervals.push(lunch);
